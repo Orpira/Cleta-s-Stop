@@ -1,0 +1,248 @@
+@import url('https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+:root {
+  --paper: #fbfaf6;
+  --grid-line: #d7e3f0;
+  --ink: #1f2a44;
+  --ink-blue: #2b4c7e;
+  --stamp-red: #c43c3c;
+  --highlight: #e8b93b;
+  --paper-shadow: rgba(43, 76, 126, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background-color: var(--ink-blue);
+  color: var(--ink);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+body {
+  background-image:
+    linear-gradient(var(--ink-blue), var(--ink-blue));
+  min-height: 100vh;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 720px;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  border-radius: 10px;
+  box-shadow: 0 24px 60px var(--paper-shadow), 0 2px 0 rgba(0, 0, 0, 0.04);
+  padding: 40px;
+  position: relative;
+  border: 1px solid rgba(43, 76, 126, 0.15);
+}
+
+.sheet::before {
+  content: '';
+  position: absolute;
+  left: 56px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(196, 60, 60, 0.35);
+}
+
+.brand {
+  font-family: 'Kalam', cursive;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--ink-blue);
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+h1.title {
+  font-family: 'Kalam', cursive;
+  font-weight: 700;
+  font-size: 48px;
+  line-height: 1;
+  margin: 0 0 8px 0;
+  color: var(--ink);
+}
+
+.subtitle {
+  font-size: 15px;
+  color: #4b5a76;
+  margin: 0 0 28px 0;
+}
+
+.field-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7590;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.input {
+  width: 100%;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  padding: 12px 14px;
+  border: none;
+  border-bottom: 2px solid var(--ink-blue);
+  background: transparent;
+  color: var(--ink);
+  outline: none;
+}
+
+.input:focus {
+  border-bottom-color: var(--stamp-red);
+}
+
+.btn {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 13px 24px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+
+.btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.btn-primary {
+  background: var(--ink-blue);
+  color: var(--paper);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 6px 16px rgba(43, 76, 126, 0.35);
+}
+
+.btn-stop {
+  background: var(--stamp-red);
+  color: white;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-blue);
+  border: 2px solid var(--ink-blue);
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+}
+
+.row > * {
+  flex: 1;
+}
+
+.stamp {
+  display: inline-block;
+  font-family: 'Kalam', cursive;
+  font-weight: 700;
+  color: var(--stamp-red);
+  border: 3px solid var(--stamp-red);
+  border-radius: 8px;
+  padding: 4px 14px;
+  transform: rotate(-6deg);
+  letter-spacing: 0.05em;
+}
+
+.letter-card {
+  width: 96px;
+  height: 96px;
+  background: var(--ink-blue);
+  color: var(--paper);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Kalam', cursive;
+  font-size: 52px;
+  font-weight: 700;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.15);
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--grid-line);
+}
+
+.category-row label {
+  width: 90px;
+  font-size: 13px;
+  color: #6b7590;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(232, 185, 59, 0.25);
+  color: #7a5c10;
+  font-weight: 600;
+}
+
+.player-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+table.scores {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+table.scores th,
+table.scores td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--grid-line);
+}
+
+.timer {
+  font-family: 'Kalam', cursive;
+  font-size: 28px;
+  color: var(--stamp-red);
+  font-weight: 700;
+}
+
+.code-display {
+  font-family: 'Kalam', cursive;
+  font-size: 32px;
+  letter-spacing: 0.12em;
+  color: var(--ink-blue);
+  font-weight: 700;
+}
