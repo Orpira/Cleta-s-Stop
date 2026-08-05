@@ -1,6 +1,10 @@
-import { Answer, RoomSettings } from './supabaseClient';
+import { Room } from '../../core/supabaseClient';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.replace(/[ÑWKX]/g, ''); // letras jugables por defecto en es-ES
+
+export interface StopRoom extends Room {
+  current_letter: string | null;
+}
 
 export function drawRandomLetter(excludeLetters: string[] = []): string {
   const pool = ALPHABET.split('').filter((l) => !excludeLetters.includes(l));
@@ -8,11 +12,32 @@ export function drawRandomLetter(excludeLetters: string[] = []): string {
   return source[Math.floor(Math.random() * source.length)];
 }
 
-export function generateRoomCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin caracteres ambiguos
-  let code = '';
-  for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
+export type ValidationMode = 'vote' | 'host' | 'auto_nonempty';
+
+export interface StopSettings {
+  validation_mode: ValidationMode;
+  max_players: number;
+  round_seconds: number;
+  categories: string[];
+  rounds_to_play: number;
+}
+
+export const DEFAULT_STOP_SETTINGS: StopSettings = {
+  validation_mode: 'vote',
+  max_players: 8,
+  round_seconds: 60,
+  categories: ['Nombre', 'Apellido', 'Animal', 'Fruta', 'Color', 'Ciudad', 'Cosa'],
+  rounds_to_play: 5,
+};
+
+export interface Answer {
+  id: string;
+  round_id: string;
+  player_id: string;
+  category: string;
+  word: string;
+  is_valid: boolean | null;
+  points: number;
 }
 
 /**
@@ -27,11 +52,7 @@ export function generateRoomCode(): string {
  *  - 50 puntos si es válida pero repetida con otro jugador en la misma categoría
  *  - 100 puntos si es válida y única
  */
-export function scoreRound(
-  answers: Answer[],
-  letter: string,
-  settings: RoomSettings
-): Answer[] {
+export function scoreRound(answers: Answer[], letter: string, settings: StopSettings): Answer[] {
   const byCategory: Record<string, Answer[]> = {};
   for (const a of answers) {
     byCategory[a.category] = byCategory[a.category] || [];
@@ -82,19 +103,4 @@ function normalize(word: string): string {
 
 function startsWithLetter(word: string, letter: string): boolean {
   return word.trim().toUpperCase().startsWith(letter.toUpperCase()) && word.trim().length > 0;
-}
-
-/**
- * eligibleVoters = jugadores que SÍ pueden votar esta respuesta, es decir,
- * el total de jugadores de la sala MENOS el propio autor de la palabra
- * (nadie vota su propia respuesta). Con eligibleVoters = 1 (salas de 2
- * jugadores), basta 1 voto "válida" para que la palabra pase.
- */
-export function tallyVotes(
-  votes: { valid: boolean }[],
-  eligibleVoters: number
-): boolean {
-  if (eligibleVoters <= 0) return false;
-  const validCount = votes.filter((v) => v.valid).length;
-  return validCount * 2 > eligibleVoters;
 }

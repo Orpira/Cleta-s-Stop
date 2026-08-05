@@ -10,6 +10,7 @@ create table if not exists rooms (
   code text unique not null,                 -- código corto de sala, ej. "AB3X"
   host_id uuid not null,
   status text not null default 'lobby',       -- lobby | playing | round_review | finished
+  game_type text not null default 'stop',     -- qué juego se está jugando en esta sala
   settings jsonb not null default '{
     "validation_mode": "vote",
     "max_players": 8,
@@ -41,7 +42,8 @@ create table if not exists rounds (
   letter text not null,
   started_at timestamptz not null default now(),
   ended_at timestamptz,
-  stopped_by uuid references players(id)
+  stopped_by uuid references players(id),
+  payload jsonb                     -- estado de ronda específico de otros juegos (sin usar por Stop)
 );
 
 -- Respuestas de cada jugador por ronda y categoría
@@ -53,6 +55,7 @@ create table if not exists answers (
   word text not null default '',
   is_valid boolean,                 -- null = pendiente de validar
   points int not null default 0,
+  payload jsonb,                    -- respuesta específica de otros juegos (sin usar por Stop)
   unique (round_id, player_id, category)
 );
 
@@ -65,19 +68,21 @@ create table if not exists validation_votes (
   unique (answer_id, voter_id)
 );
 
--- Top 5 histórico global (por nickname, acumulado entre partidas)
+-- Top 5 histórico global (por nickname y juego, acumulado entre partidas)
 create table if not exists leaderboard (
   id uuid primary key default gen_random_uuid(),
   nickname text not null,
+  game_type text not null default 'stop',
   best_score int not null default 0,
   games_played int not null default 0,
   updated_at timestamptz not null default now()
 );
 
+create index if not exists idx_rooms_game_type on rooms(game_type);
 create index if not exists idx_players_room on players(room_id);
 create index if not exists idx_rounds_room on rounds(room_id);
 create index if not exists idx_answers_round on answers(round_id);
-create index if not exists idx_leaderboard_score on leaderboard(best_score desc);
+create index if not exists idx_leaderboard_game_score on leaderboard(game_type, best_score desc);
 
 -- Realtime: habilitar cambios en vivo para estas tablas
 alter publication supabase_realtime add table rooms, players, rounds, answers, validation_votes;
