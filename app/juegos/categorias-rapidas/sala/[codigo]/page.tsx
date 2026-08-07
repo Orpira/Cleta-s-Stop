@@ -12,7 +12,12 @@ import {
   ValidationMode,
   scoreRound,
 } from '@/lib/core/scoring';
-import { StopRoom, StopSettings } from '@/lib/games/stop/gameLogic';
+import {
+  CategoriasRoom,
+  CategoriasSettings,
+  CATEGORY_POOL,
+  drawRandomCategories,
+} from '@/lib/games/categorias-rapidas/gameLogic';
 import { Sheet } from '@/components/ui/Sheet';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -20,16 +25,17 @@ import { PlayerChip } from '@/components/ui/PlayerChip';
 import { ScoreTable } from '@/components/ui/ScoreTable';
 import { Stamp } from '@/components/ui/Stamp';
 
-const GAME_TYPE = 'stop';
+const GAME_TYPE = 'categorias-rapidas';
 
-export default function StopRoomPage() {
+export default function CategoriasRapidasRoomPage() {
   const params = useParams<{ codigo: string }>();
   const code = (params.codigo || '').toUpperCase();
 
-  const [room, setRoom] = useState<StopRoom | null>(null);
+  const [room, setRoom] = useState<CategoriasRoom | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [roundId, setRoundId] = useState<string | null>(null);
+  const [roundCategories, setRoundCategories] = useState<string[]>([]);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -38,7 +44,7 @@ export default function StopRoomPage() {
 
   const me = players.find((p) => p.id === myPlayerId) || null;
   const isHost = !!me?.is_host;
-  const settings = (room?.settings || {}) as StopSettings;
+  const settings = (room?.settings || {}) as CategoriasSettings;
 
   // --- carga inicial + suscripción en tiempo real ---
   useEffect(() => {
@@ -56,7 +62,7 @@ export default function StopRoomPage() {
         setError('Esta sala no existe o ya terminó.');
         return;
       }
-      setRoom(r as StopRoom);
+      setRoom(r as CategoriasRoom);
       const { data: pls } = await supabase.from('players').select('*').eq('room_id', r.id).order('joined_at');
       setPlayers((pls as Player[]) || []);
 
@@ -69,6 +75,7 @@ export default function StopRoomPage() {
         .maybeSingle();
       if (latestRound && !latestRound.ended_at) {
         setRoundId(latestRound.id);
+        setRoundCategories(latestRound.payload?.categories || []);
       }
     })();
   }, [code]);
@@ -79,7 +86,7 @@ export default function StopRoomPage() {
     const channel = supabase
       .channel(`room-${room.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` }, (payload) => {
-        setRoom(payload.new as StopRoom);
+        setRoom(payload.new as CategoriasRoom);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${room.id}` }, async () => {
         const { data: pls } = await supabase.from('players').select('*').eq('room_id', room.id).order('joined_at');
@@ -87,6 +94,7 @@ export default function StopRoomPage() {
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rounds', filter: `room_id=eq.${room.id}` }, (payload) => {
         setRoundId(payload.new.id as string);
+        setRoundCategories((payload.new as any).payload?.categories || []);
         setAnswers([]);
         setDraft({});
       })
@@ -129,7 +137,7 @@ export default function StopRoomPage() {
   }, [room?.status, roundId]);
 
   // --- acciones del host: configuración ---
-  async function updateSettings(patch: Partial<StopSettings>) {
+  async function updateSettings(patch: Partial<CategoriasSettings>) {
     if (!room) return;
     const newSettings = { ...settings, ...patch };
     await supabase.from('rooms').update({ settings: newSettings }).eq('id', room.id);
@@ -138,9 +146,10 @@ export default function StopRoomPage() {
   async function startGame() {
     if (!room) return;
     const letter = drawRandomLetter();
+    const categories = drawRandomCategories(settings.categories_per_round);
     const { data: newRound } = await supabase
       .from('rounds')
-      .insert({ room_id: room.id, round_number: 1, letter })
+      .insert({ room_id: room.id, round_number: 1, letter, payload: { categories } })
       .select()
       .single();
     await supabase
@@ -148,6 +157,7 @@ export default function StopRoomPage() {
       .update({ status: 'playing', current_round: 1, current_letter: letter })
       .eq('id', room.id);
     setRoundId(newRound?.id || null);
+    setRoundCategories(categories);
   }
 
   async function endRound() {
@@ -158,7 +168,7 @@ export default function StopRoomPage() {
 
   async function saveMyAnswers() {
     if (!room || !roundId || !me) return;
-    const rows = settings.categories.map((category) => ({
+    const rows = roundCategories.map((category) => ({
       round_id: roundId,
       player_id: me.id,
       category,
@@ -204,10 +214,11 @@ export default function StopRoomPage() {
   async function nextRound() {
     if (!room) return;
     const letter = drawRandomLetter();
+    const categories = drawRandomCategories(settings.categories_per_round);
     const nextNumber = room.current_round + 1;
     const { data: newRound } = await supabase
       .from('rounds')
-      .insert({ room_id: room.id, round_number: nextNumber, letter })
+      .insert({ room_id: room.id, round_number: nextNumber, letter, payload: { categories } })
       .select()
       .single();
     await supabase
@@ -215,6 +226,7 @@ export default function StopRoomPage() {
       .update({ status: 'playing', current_round: nextNumber, current_letter: letter })
       .eq('id', room.id);
     setRoundId(newRound?.id || null);
+    setRoundCategories(categories);
   }
 
   async function finishGame() {
@@ -252,7 +264,7 @@ export default function StopRoomPage() {
   return (
     <Sheet brand="orpira.es · sala" maxWidth={640}>
       <div className="row" style={{ alignItems: 'baseline', marginBottom: 8 }}>
-        <h1 className="title" style={{ fontSize: 34 }}>¡Stop!</h1>
+        <h1 className="title" style={{ fontSize: 34 }}>Categorías rápidas</h1>
         <span className="code-display">{room.code}</span>
       </div>
 
@@ -279,7 +291,7 @@ export default function StopRoomPage() {
       {room.status === 'playing' && (
         <GameBoard
           letter={room.current_letter || ''}
-          categories={settings.categories}
+          categories={roundCategories}
           draft={draft}
           setDraft={setDraft}
           secondsLeft={secondsLeft}
@@ -293,7 +305,7 @@ export default function StopRoomPage() {
         <RoundReview
           answers={answers}
           players={players}
-          categories={settings.categories}
+          categories={roundCategories}
           validationMode={settings.validation_mode}
           me={me}
           onVote={castVote}
@@ -317,10 +329,10 @@ function LobbySettings({
   onChange,
   onStart,
 }: {
-  settings: StopSettings;
+  settings: CategoriasSettings;
   isHost: boolean;
   players: Player[];
-  onChange: (patch: Partial<StopSettings>) => void;
+  onChange: (patch: Partial<CategoriasSettings>) => void;
   onStart: () => void;
 }) {
   const validationOptions: { value: ValidationMode; label: string }[] = [
@@ -392,6 +404,16 @@ function LobbySettings({
                 onChange={(e) => onChange({ rounds_to_play: Number(e.target.value) })}
               />
             </div>
+            <div>
+              <span className="field-label">Categorías por ronda</span>
+              <Input
+                type="number"
+                min={1}
+                max={CATEGORY_POOL.length}
+                value={settings.categories_per_round}
+                onChange={(e) => onChange({ categories_per_round: Number(e.target.value) })}
+              />
+            </div>
           </div>
 
           <Button variant="stop" style={{ width: '100%' }} onClick={onStart} disabled={players.length < 1}>
@@ -406,7 +428,7 @@ function LobbySettings({
 }
 
 // ---------------------------------------------------------------
-// Tablero de juego: letra, temporizador y categorías
+// Tablero de juego: letra, temporizador y categorías sorteadas de la ronda
 // ---------------------------------------------------------------
 function GameBoard({
   letter,
@@ -576,10 +598,10 @@ function FinalResults({ players }: { players: Player[] }) {
         rows={sorted.map((p, i) => ({ key: p.id, cells: [i + 1, p.nickname, p.total_score] }))}
       />
       <p style={{ marginTop: 16 }}>
-        <a href="/ranking" style={{ color: 'var(--ink-blue)' }}>Ver ranking global (top 5) →</a>
+        <a href="/ranking?game=categorias-rapidas" style={{ color: 'var(--ink-blue)' }}>Ver ranking global (top 5) →</a>
       </p>
       <p style={{ marginTop: 8 }}>
-        <a href="/juegos/stop" style={{ color: 'var(--ink-blue)' }}>Jugar otra partida</a>
+        <a href="/juegos/categorias-rapidas" style={{ color: 'var(--ink-blue)' }}>Jugar otra partida</a>
       </p>
     </>
   );

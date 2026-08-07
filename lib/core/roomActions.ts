@@ -7,6 +7,14 @@ export function generateRoomCode(): string {
   return code;
 }
 
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.replace(/[ÑWKX]/g, ''); // letras jugables por defecto en es-ES
+
+export function drawRandomLetter(excludeLetters: string[] = []): string {
+  const pool = ALPHABET.split('').filter((l) => !excludeLetters.includes(l));
+  const source = pool.length > 0 ? pool : ALPHABET.split('');
+  return source[Math.floor(Math.random() * source.length)];
+}
+
 function playerStorageKey(gameType: string, code: string): string {
   return `${gameType}_player_${code}`;
 }

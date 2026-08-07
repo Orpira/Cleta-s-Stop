@@ -10,6 +10,11 @@ export default function JuegosPage() {
         <span>¡Stop! — el clásico juego de papel, en línea y multijugador</span>
         <a href="/juegos/stop" style={{ color: 'var(--ink-blue)', fontWeight: 700 }}>Jugar →</a>
       </div>
+
+      <div className="player-chip">
+        <span>Categorías rápidas — Stop con un banco de 20 categorías, sorteadas cada ronda</span>
+        <a href="/juegos/categorias-rapidas" style={{ color: 'var(--ink-blue)', fontWeight: 700 }}>Jugar →</a>
+      </div>
     </Sheet>
   );
 }
