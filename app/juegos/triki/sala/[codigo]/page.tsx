@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { supabase, Player, Room } from '@/lib/core/supabaseClient';
 import { getStoredPlayerId } from '@/lib/core/roomActions';
 import { applyRoundScores, upsertLeaderboardResult } from '@/lib/core/scoring';
-import { Mark, TrikiPayload, TrikiRound, emptyPayload, checkWinner } from '@/lib/games/triki/gameLogic';
+import { Mark, TrikiPayload, TrikiRound, emptyPayload, checkWinner, startingMarkFor } from '@/lib/games/triki/gameLogic';
 import { Sheet } from '@/components/ui/Sheet';
 import { Button } from '@/components/ui/Button';
 import { PlayerChip } from '@/components/ui/PlayerChip';
@@ -95,7 +95,7 @@ export default function TrikiRoomPage() {
     if (!room) return;
     const { data: newRound } = await supabase
       .from('rounds')
-      .insert({ room_id: room.id, round_number: 1, payload: emptyPayload() })
+      .insert({ room_id: room.id, round_number: 1, payload: emptyPayload(startingMarkFor(1)) })
       .select()
       .single();
     await supabase.from('rooms').update({ status: 'playing', current_round: 1 }).eq('id', room.id);
@@ -107,7 +107,7 @@ export default function TrikiRoomPage() {
     const nextNumber = round.round_number + 1;
     const { data: newRound } = await supabase
       .from('rounds')
-      .insert({ room_id: room.id, round_number: nextNumber, payload: emptyPayload() })
+      .insert({ room_id: room.id, round_number: nextNumber, payload: emptyPayload(startingMarkFor(nextNumber)) })
       .select()
       .single();
     await supabase.from('rooms').update({ status: 'playing', current_round: nextNumber }).eq('id', room.id);

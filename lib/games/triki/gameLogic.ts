@@ -23,8 +23,13 @@ export interface TrikiRound {
   ended_at: string | null;
 }
 
-export function emptyPayload(): TrikiPayload {
-  return { board: Array(9).fill(null), turn: 'X', winner: null, winning_line: null };
+export function emptyPayload(starting: Mark = 'X'): TrikiPayload {
+  return { board: Array(9).fill(null), turn: starting, winner: null, winning_line: null };
+}
+
+// Ronda 1 empieza X (el anfitrión); cada revancha alterna quién arranca.
+export function startingMarkFor(roundNumber: number): Mark {
+  return roundNumber % 2 === 1 ? 'X' : 'O';
 }
 
 const WIN_LINES = [
