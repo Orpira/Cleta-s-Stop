@@ -51,6 +51,10 @@ cambiar debajo.
 - [x] "Terminar partida" pasa la sala a `finished` y escribe en
       `leaderboard` con `game_type='triki'`, usando victorias acumuladas en
       la sala como puntaje.
+- [x] Quién empieza se alterna entre revanchas: ronda 1 arranca X (el
+      anfitrión), ronda 2 arranca O, etc. — *Verificado 2026-08-10, `main`:
+      tras la revancha el subtítulo muestra "tu turno" para O y "turno de la
+      otra persona" para X, y O pudo mover primero sin error.*
 
 ## Cómo se corrió la última vez
 
