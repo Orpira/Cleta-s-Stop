@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase, Player } from '@/lib/core/supabaseClient';
-import { getStoredPlayerId, drawRandomLetter } from '@/lib/core/roomActions';
+import { getStoredPlayerId } from '@/lib/core/roomActions';
+import { applyRoundScores, upsertLeaderboardResult } from '@/lib/core/scoring';
 import {
+  drawRandomLetter,
   tallyVotes,
-  applyRoundScores,
-  upsertLeaderboardResult,
   Answer,
   ValidationMode,
   scoreRound,
-} from '@/lib/core/scoring';
+} from '@/lib/games/shared/wordGameLogic';
 import {
   CategoriasRoom,
   CategoriasSettings,

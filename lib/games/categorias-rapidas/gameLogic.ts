@@ -1,5 +1,5 @@
 import { Room } from '../../core/supabaseClient';
-import { ValidationMode } from '../../core/scoring';
+import { ValidationMode } from '../shared/wordGameLogic';
 
 export const CATEGORY_POOL: string[] = [
   'Nombre',

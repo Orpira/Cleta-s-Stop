@@ -1,5 +1,5 @@
 import { Room } from '../../core/supabaseClient';
-import { ValidationMode } from '../../core/scoring';
+import { ValidationMode } from '../shared/wordGameLogic';
 
 export interface StopRoom extends Room {
   current_letter: string | null;
