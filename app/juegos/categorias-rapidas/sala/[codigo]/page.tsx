@@ -12,6 +12,7 @@ import {
   ValidationMode,
   scoreRound,
 } from '@/lib/games/shared/wordGameLogic';
+import { getRecentLetters, rememberLetter } from '@/lib/games/shared/letterHistory';
 import {
   CategoriasRoom,
   CategoriasSettings,
@@ -143,9 +144,20 @@ export default function CategoriasRapidasRoomPage() {
     await supabase.from('rooms').update({ settings: newSettings }).eq('id', room.id);
   }
 
+  // evita repetir letra dentro de la misma partida (rondas ya jugadas en
+  // esta sala) y, si es posible, también respecto a partidas recientes en
+  // este dispositivo
+  async function pickRoundLetter(): Promise<string> {
+    const { data: pastRounds } = await supabase.from('rounds').select('letter').eq('room_id', room!.id);
+    const usedInRoom = ((pastRounds || []).map((r) => r.letter).filter(Boolean)) as string[];
+    const letter = drawRandomLetter(usedInRoom, getRecentLetters(GAME_TYPE));
+    rememberLetter(GAME_TYPE, letter);
+    return letter;
+  }
+
   async function startGame() {
     if (!room) return;
-    const letter = drawRandomLetter();
+    const letter = await pickRoundLetter();
     const categories = drawRandomCategories(settings.categories_per_round);
     const { data: newRound } = await supabase
       .from('rounds')
@@ -213,7 +225,7 @@ export default function CategoriasRapidasRoomPage() {
 
   async function nextRound() {
     if (!room) return;
-    const letter = drawRandomLetter();
+    const letter = await pickRoundLetter();
     const categories = drawRandomCategories(settings.categories_per_round);
     const nextNumber = room.current_round + 1;
     const { data: newRound } = await supabase

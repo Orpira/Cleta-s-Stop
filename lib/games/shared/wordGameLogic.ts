@@ -4,9 +4,18 @@
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.replace(/[ÑWKX]/g, ''); // letras jugables por defecto en es-ES
 
-export function drawRandomLetter(excludeLetters: string[] = []): string {
-  const pool = ALPHABET.split('').filter((l) => !excludeLetters.includes(l));
-  const source = pool.length > 0 ? pool : ALPHABET.split('');
+/**
+ * excludeLetters: nunca se repiten mientras haya alternativa (p.ej. letras ya
+ * usadas en rondas anteriores de esta misma partida).
+ * softExcludeLetters: se evitan si es posible, pero ceden ante excludeLetters
+ * (p.ej. letras usadas en partidas recientes en este dispositivo). Si no
+ * queda ninguna letra que cumpla ambas restricciones, se ignora primero el
+ * soft-exclude y, como último recurso, el exclude.
+ */
+export function drawRandomLetter(excludeLetters: string[] = [], softExcludeLetters: string[] = []): string {
+  const hardPool = ALPHABET.split('').filter((l) => !excludeLetters.includes(l));
+  const preferredPool = hardPool.filter((l) => !softExcludeLetters.includes(l));
+  const source = preferredPool.length > 0 ? preferredPool : hardPool.length > 0 ? hardPool : ALPHABET.split('');
   return source[Math.floor(Math.random() * source.length)];
 }
 
