@@ -43,6 +43,43 @@ export function tallyVotes(votes: { valid: boolean }[], eligibleVoters: number):
   return validCount * 2 > eligibleVoters;
 }
 
+export interface Vote {
+  answer_id: string;
+  voter_id: string;
+  valid: boolean;
+}
+
+/**
+ * Comprueba si YA se puede calcular puntuación, es decir, si toda respuesta
+ * no vacía tiene una validez decidida:
+ *  - "auto_nonempty": no requiere ninguna acción manual, siempre está lista
+ *  - "host": el anfitrión debe haber marcado válida/no válida cada respuesta
+ *  - "vote": cada respuesta necesita el voto de TODOS los jugadores con
+ *    derecho a votarla (todos menos su autor), no solo mayoría
+ */
+export function isRoundFullyValidated(
+  answers: Answer[],
+  players: { id: string }[],
+  votes: Vote[],
+  validationMode: ValidationMode
+): boolean {
+  if (validationMode === 'auto_nonempty') return true;
+
+  const pending = answers.filter((a) => a.word.trim().length > 0);
+
+  if (validationMode === 'host') {
+    return pending.every((a) => a.is_valid !== null && a.is_valid !== undefined);
+  }
+
+  // vote
+  return pending.every((a) => {
+    const eligibleVoters = players.filter((p) => p.id !== a.player_id).length;
+    if (eligibleVoters <= 0) return true;
+    const voteCount = votes.filter((v) => v.answer_id === a.id).length;
+    return voteCount >= eligibleVoters;
+  });
+}
+
 /**
  * Puntuación genérica por ronda, aplicada según el modo de validación elegido por
  * los propios participantes en la configuración de la sala:

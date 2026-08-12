@@ -39,6 +39,7 @@ export interface CategoriasSettings {
   round_seconds: number;
   rounds_to_play: number;
   categories_per_round: number;
+  show_hints: boolean;
 }
 
 export const DEFAULT_CATEGORIAS_SETTINGS: CategoriasSettings = {
@@ -47,4 +48,5 @@ export const DEFAULT_CATEGORIAS_SETTINGS: CategoriasSettings = {
   round_seconds: 60,
   rounds_to_play: 5,
   categories_per_round: 5,
+  show_hints: false,
 };

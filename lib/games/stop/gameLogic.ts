@@ -11,6 +11,7 @@ export interface StopSettings {
   round_seconds: number;
   categories: string[];
   rounds_to_play: number;
+  show_hints: boolean;
 }
 
 export const DEFAULT_STOP_SETTINGS: StopSettings = {
@@ -19,4 +20,5 @@ export const DEFAULT_STOP_SETTINGS: StopSettings = {
   round_seconds: 60,
   categories: ['Nombre', 'Apellido', 'Animal', 'Fruta', 'Color', 'Ciudad', 'Cosa'],
   rounds_to_play: 5,
+  show_hints: false,
 };

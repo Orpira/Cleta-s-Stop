@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase, Player } from '@/lib/core/supabaseClient';
 import { getStoredPlayerId } from '@/lib/core/roomActions';
@@ -8,11 +8,16 @@ import { applyRoundScores, upsertLeaderboardResult } from '@/lib/core/scoring';
 import {
   drawRandomLetter,
   tallyVotes,
+  isRoundFullyValidated,
   Answer,
+  Vote,
   ValidationMode,
   scoreRound,
 } from '@/lib/games/shared/wordGameLogic';
 import { getRecentLetters, rememberLetter } from '@/lib/games/shared/letterHistory';
+import { getHintWord } from '@/lib/games/shared/wordBank';
+import { createRoundMusic } from '@/lib/games/shared/roundMusic';
+import { getStoredSelfie, storeSelfie } from '@/lib/games/shared/selfieStorage';
 import {
   CategoriasRoom,
   CategoriasSettings,
@@ -38,10 +43,18 @@ export default function CategoriasRapidasRoomPage() {
   const [roundId, setRoundId] = useState<string | null>(null);
   const [roundCategories, setRoundCategories] = useState<string[]>([]);
   const [answers, setAnswers] = useState<Answer[]>([]);
+  const [votes, setVotes] = useState<Vote[]>([]);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [error, setError] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const roundIdRef = useRef<string | null>(null);
+  roundIdRef.current = roundId;
+  const answersRef = useRef<Answer[]>([]);
+  answersRef.current = answers;
+  const resolvingRef = useRef(false);
+  const musicRef = useRef(createRoundMusic());
+  const [musicEnabled, setMusicEnabled] = useState(false);
 
   const me = players.find((p) => p.id === myPlayerId) || null;
   const isHost = !!me?.is_host;
@@ -97,14 +110,21 @@ export default function CategoriasRapidasRoomPage() {
         setRoundId(payload.new.id as string);
         setRoundCategories((payload.new as any).payload?.categories || []);
         setAnswers([]);
+        setVotes([]);
         setDraft({});
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'answers' }, async (payload) => {
         const rId = (payload.new as any)?.round_id || (payload.old as any)?.round_id;
-        if (rId && rId === roundId) {
+        if (rId && rId === roundIdRef.current) {
           const { data } = await supabase.from('answers').select('*').eq('round_id', rId);
           setAnswers((data as Answer[]) || []);
         }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'validation_votes' }, async () => {
+        const answerIds = answersRef.current.map((a) => a.id);
+        if (answerIds.length === 0) return;
+        const { data } = await supabase.from('validation_votes').select('*').in('answer_id', answerIds);
+        setVotes((data as Vote[]) || []);
       })
       .subscribe();
 
@@ -112,7 +132,7 @@ export default function CategoriasRapidasRoomPage() {
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id, roundId]);
+  }, [room?.id]);
 
   // --- temporizador local de la ronda ---
   useEffect(() => {
@@ -136,6 +156,25 @@ export default function CategoriasRapidasRoomPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.status, roundId]);
+
+  // --- música de fondo (sintetizada, sólo si el jugador la activa) ---
+  useEffect(() => {
+    if (musicEnabled && room?.status === 'playing') {
+      musicRef.current.start();
+    } else {
+      musicRef.current.stop();
+    }
+  }, [musicEnabled, room?.status]);
+
+  useEffect(() => {
+    const music = musicRef.current;
+    return () => music.dispose();
+  }, []);
+
+  function toggleMusic() {
+    if (!musicEnabled) musicRef.current.ensureContext();
+    setMusicEnabled((v) => !v);
+  }
 
   // --- acciones del host: configuración ---
   async function updateSettings(patch: Partial<CategoriasSettings>) {
@@ -189,32 +228,45 @@ export default function CategoriasRapidasRoomPage() {
     await supabase.from('answers').upsert(rows, { onConflict: 'round_id,player_id,category' });
   }
 
-  // --- validación + puntuación (host resuelve y aplica) ---
+  // --- validación + puntuación (host resuelve; sólo se permite cuando ya
+  // todas las respuestas están validadas, ver isRoundFullyValidated) ---
   async function resolveRoundScores() {
-    if (!room || !roundId) return;
-    const { data: allAnswers } = await supabase.from('answers').select('*').eq('round_id', roundId);
-    if (!allAnswers) return;
+    if (!room || !roundId || resolvingRef.current) return;
+    resolvingRef.current = true;
+    try {
+      const { data: allAnswers } = await supabase.from('answers').select('*').eq('round_id', roundId);
+      if (!allAnswers) return;
 
-    let resolved = allAnswers as Answer[];
+      let resolved = allAnswers as Answer[];
 
-    if (settings.validation_mode === 'vote') {
-      const { data: votes } = await supabase.from('validation_votes').select('*');
-      resolved = resolved.map((a) => {
-        const answerVotes = (votes || []).filter((v: any) => v.answer_id === a.id);
-        const eligibleVoters = players.length - 1; // todos menos el autor de la respuesta
-        const valid = tallyVotes(answerVotes, eligibleVoters);
-        return { ...a, is_valid: valid };
-      });
+      if (settings.validation_mode === 'vote') {
+        const { data: votesData } = await supabase
+          .from('validation_votes')
+          .select('*')
+          .in('answer_id', resolved.map((a) => a.id));
+        resolved = resolved.map((a) => {
+          const answerVotes = (votesData || []).filter((v: any) => v.answer_id === a.id);
+          const eligibleVoters = players.length - 1; // todos menos el autor de la respuesta
+          const valid = tallyVotes(answerVotes, eligibleVoters);
+          return { ...a, is_valid: valid };
+        });
+      }
+
+      const scored = scoreRound(resolved, room.current_letter || '', settings);
+
+      for (const a of scored) {
+        await supabase.from('answers').update({ is_valid: a.is_valid, points: a.points }).eq('id', a.id);
+      }
+
+      await applyRoundScores(players, scored);
+    } finally {
+      resolvingRef.current = false;
     }
+  }
 
-    const scored = scoreRound(resolved, room.current_letter || '', settings);
-
-    for (const a of scored) {
-      await supabase.from('answers').update({ is_valid: a.is_valid, points: a.points }).eq('id', a.id);
-    }
-
-    await applyRoundScores(players, scored);
-
+  // el host confirma que ya vio la puntuación de la ronda y continúa
+  async function continueAfterReview() {
+    if (!room) return;
     const isLastRound = room.current_round >= settings.rounds_to_play;
     if (isLastRound) {
       await finishGame();
@@ -257,6 +309,10 @@ export default function CategoriasRapidasRoomPage() {
     );
   }
 
+  async function castHostDecision(answerId: string, valid: boolean) {
+    await supabase.from('answers').update({ is_valid: valid }).eq('id', answerId);
+  }
+
   if (error) {
     return (
       <Sheet brand="orpira.es · sala">
@@ -278,6 +334,9 @@ export default function CategoriasRapidasRoomPage() {
       <div className="row" style={{ alignItems: 'baseline', marginBottom: 8 }}>
         <h1 className="title" style={{ fontSize: 34 }}>Categorías rápidas</h1>
         <span className="code-display">{room.code}</span>
+        <Button variant="ghost" style={{ fontSize: 12, padding: '6px 10px', flex: '0 0 auto' }} onClick={toggleMusic}>
+          {musicEnabled ? '🔊 Música' : '🔇 Música'}
+        </Button>
       </div>
 
       {room.status === 'lobby' && room.current_round === 0 && (
@@ -287,6 +346,7 @@ export default function CategoriasRapidasRoomPage() {
           players={players}
           onChange={updateSettings}
           onStart={startGame}
+          code={code}
         />
       )}
 
@@ -304,6 +364,7 @@ export default function CategoriasRapidasRoomPage() {
         <GameBoard
           letter={room.current_letter || ''}
           categories={roundCategories}
+          showHints={settings.show_hints}
           draft={draft}
           setDraft={setDraft}
           secondsLeft={secondsLeft}
@@ -319,14 +380,17 @@ export default function CategoriasRapidasRoomPage() {
           players={players}
           categories={roundCategories}
           validationMode={settings.validation_mode}
+          votes={votes}
           me={me}
           onVote={castVote}
+          onHostDecision={castHostDecision}
           isHost={isHost}
           onResolve={resolveRoundScores}
+          onContinue={continueAfterReview}
         />
       )}
 
-      {room.status === 'finished' && <FinalResults players={players} />}
+      {room.status === 'finished' && <FinalResults players={players} me={me} code={code} />}
     </Sheet>
   );
 }
@@ -340,12 +404,14 @@ function LobbySettings({
   players,
   onChange,
   onStart,
+  code,
 }: {
   settings: CategoriasSettings;
   isHost: boolean;
   players: Player[];
   onChange: (patch: Partial<CategoriasSettings>) => void;
   onStart: () => void;
+  code: string;
 }) {
   const validationOptions: { value: ValidationMode; label: string }[] = [
     { value: 'vote', label: 'Votación entre jugadores' },
@@ -366,6 +432,8 @@ function LobbySettings({
           </PlayerChip>
         ))}
       </div>
+
+      <SelfiePicker gameType={GAME_TYPE} code={code} />
 
       {isHost ? (
         <>
@@ -428,6 +496,19 @@ function LobbySettings({
             </div>
           </div>
 
+          <div style={{ marginBottom: 18 }}>
+            <Button
+              variant={settings.show_hints ? 'primary' : 'ghost'}
+              style={{ fontSize: 13 }}
+              onClick={() => onChange({ show_hints: !settings.show_hints })}
+            >
+              {settings.show_hints ? '💡 Pistas activadas' : '💡 Activar pistas'}
+            </Button>
+            <p style={{ fontSize: 12, color: '#6b7590', marginTop: 6 }}>
+              Muestra ejemplos de palabras válidas durante la ronda (más fácil, menos reto).
+            </p>
+          </div>
+
           <Button variant="stop" style={{ width: '100%' }} onClick={onStart} disabled={players.length < 1}>
             Empezar partida
           </Button>
@@ -440,11 +521,54 @@ function LobbySettings({
 }
 
 // ---------------------------------------------------------------
+// Selfie del jugador: se guarda sólo en este navegador (no se sube a
+// ningún servidor) y se muestra junto a su propio resultado final.
+// ---------------------------------------------------------------
+function SelfiePicker({ gameType, code }: { gameType: string; code: string }) {
+  const [selfie, setSelfie] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelfie(getStoredSelfie(gameType, code));
+  }, [gameType, code]);
+
+  function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      storeSelfie(gameType, code, dataUrl);
+      setSelfie(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="row" style={{ alignItems: 'center', gap: 12, marginBottom: 18 }}>
+      {selfie ? (
+        <img
+          src={selfie}
+          alt="Tu selfie"
+          style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }}
+        />
+      ) : (
+        <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#e8eaf2' }} />
+      )}
+      <div>
+        <span className="field-label">Tu selfie (solo en este dispositivo)</span>
+        <Input type="file" accept="image/*" capture="user" onChange={onFile} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
 // Tablero de juego: letra, temporizador y categorías sorteadas de la ronda
 // ---------------------------------------------------------------
 function GameBoard({
   letter,
   categories,
+  showHints,
   draft,
   setDraft,
   secondsLeft,
@@ -454,6 +578,7 @@ function GameBoard({
 }: {
   letter: string;
   categories: string[];
+  showHints: boolean;
   draft: Record<string, string>;
   setDraft: (d: Record<string, string>) => void;
   secondsLeft: number | null;
@@ -475,6 +600,8 @@ function GameBoard({
         </div>
       </div>
 
+      {showHints && <HintTicker letter={letter} categories={categories} />}
+
       {categories.map((cat) => (
         <div className="category-row" key={cat}>
           <label>{cat}</label>
@@ -494,6 +621,70 @@ function GameBoard({
 }
 
 // ---------------------------------------------------------------
+// Pista rotativa: muestra un ejemplo válido por categoría, aparece y
+// desaparece cada ~2s (settings.show_hints). Si no hay ejemplo para
+// alguna combinación categoría+letra, esa categoría se salta.
+// ---------------------------------------------------------------
+function HintTicker({ letter, categories }: { letter: string; categories: string[] }) {
+  const [current, setCurrent] = useState<{ category: string; word: string } | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const withHints = categories
+      .map((category) => ({ category, word: getHintWord(category, letter) }))
+      .filter((x): x is { category: string; word: string } => !!x.word);
+
+    if (withHints.length === 0) {
+      setCurrent(null);
+      return;
+    }
+
+    let index = 0;
+    setCurrent(withHints[0]);
+    setVisible(true);
+
+    const showMs = 2000;
+    const gapMs = 400;
+    let showTimer: ReturnType<typeof setTimeout>;
+    let hideTimer: ReturnType<typeof setTimeout>;
+
+    function cycle() {
+      showTimer = setTimeout(() => {
+        setVisible(false);
+        hideTimer = setTimeout(() => {
+          index = (index + 1) % withHints.length;
+          setCurrent(withHints[index]);
+          setVisible(true);
+          cycle();
+        }, gapMs);
+      }, showMs);
+    }
+    cycle();
+
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [letter, categories.join('|')]);
+
+  if (!current) return null;
+
+  return (
+    <p
+      style={{
+        fontSize: 13,
+        color: '#6b7590',
+        marginBottom: 16,
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 350ms ease',
+      }}
+    >
+      💡 {current.category}: <strong>{current.word}</strong>
+    </p>
+  );
+}
+
+// ---------------------------------------------------------------
 // Revisión de ronda: validación (según el modo elegido) + resolver
 // ---------------------------------------------------------------
 function RoundReview({
@@ -501,21 +692,39 @@ function RoundReview({
   players,
   categories,
   validationMode,
+  votes,
   me,
   onVote,
+  onHostDecision,
   isHost,
   onResolve,
+  onContinue,
 }: {
   answers: Answer[];
   players: Player[];
   categories: string[];
   validationMode: ValidationMode;
+  votes: Vote[];
   me: Player | null;
   onVote: (answerId: string, valid: boolean) => void;
+  onHostDecision: (answerId: string, valid: boolean) => void;
   isHost: boolean;
   onResolve: () => void;
+  onContinue: () => void;
 }) {
   const nameOf = (id: string) => players.find((p) => p.id === id)?.nickname || '—';
+  const isResolved = answers.length > 0 && answers.every((a) => a.is_valid !== null && a.is_valid !== undefined);
+  const readyToValidate = isRoundFullyValidated(answers, players, votes, validationMode);
+  const pendingCount = answers.filter((a) => {
+    if (!a.word.trim() || (a.is_valid !== null && a.is_valid !== undefined)) return false;
+    if (validationMode === 'host') return true;
+    if (validationMode === 'vote') {
+      const eligibleVoters = players.filter((p) => p.id !== a.player_id).length;
+      const voteCount = votes.filter((v) => v.answer_id === a.id).length;
+      return voteCount < eligibleVoters;
+    }
+    return false;
+  }).length;
 
   return (
     <>
@@ -529,31 +738,71 @@ function RoundReview({
           <span className="field-label">{cat}</span>
           {answers
             .filter((a) => a.category === cat)
-            .map((a) => (
-              <PlayerChip
-                key={a.id}
-                actions={
-                  validationMode === 'vote' && a.player_id !== me?.id ? (
-                    <span className="row" style={{ gap: 6 }}>
-                      <Button variant="ghost" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => onVote(a.id, true)}>
-                        Válida
-                      </Button>
-                      <Button variant="ghost" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => onVote(a.id, false)}>
-                        No válida
-                      </Button>
-                    </span>
-                  ) : undefined
-                }
-              >
-                {nameOf(a.player_id)}: <strong>{a.word || '(vacío)'}</strong>
-              </PlayerChip>
-            ))}
+            .map((a) => {
+              const hasWord = a.word.trim().length > 0;
+              const decided = a.is_valid !== null && a.is_valid !== undefined;
+              const eligibleVoters = players.filter((p) => p.id !== a.player_id).length;
+              const voteCount = votes.filter((v) => v.answer_id === a.id).length;
+
+              let status: string | null = null;
+              if (decided) {
+                status = a.is_valid ? `✓ válida · +${a.points} pts` : '✗ no válida · 0 pts';
+              } else if (hasWord && validationMode === 'vote') {
+                status = `${voteCount}/${eligibleVoters} votos`;
+              }
+
+              const canVote = !decided && hasWord && validationMode === 'vote' && a.player_id !== me?.id;
+              const canHostDecide = !decided && hasWord && validationMode === 'host' && isHost;
+
+              return (
+                <PlayerChip
+                  key={a.id}
+                  actions={
+                    canVote ? (
+                      <span className="row" style={{ gap: 6 }}>
+                        <Button variant="ghost" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => onVote(a.id, true)}>
+                          Válida
+                        </Button>
+                        <Button variant="ghost" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => onVote(a.id, false)}>
+                          No válida
+                        </Button>
+                      </span>
+                    ) : canHostDecide ? (
+                      <span className="row" style={{ gap: 6 }}>
+                        <Button variant="ghost" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => onHostDecision(a.id, true)}>
+                          Válida
+                        </Button>
+                        <Button variant="ghost" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => onHostDecision(a.id, false)}>
+                          No válida
+                        </Button>
+                      </span>
+                    ) : undefined
+                  }
+                >
+                  {nameOf(a.player_id)}: <strong>{a.word || '(vacío)'}</strong>
+                  {status && <span style={{ marginLeft: 8, fontSize: 12, color: '#6b7590' }}>{status}</span>}
+                </PlayerChip>
+              );
+            })}
         </div>
       ))}
 
-      {isHost && (
-        <Button variant="primary" style={{ width: '100%' }} onClick={onResolve}>
-          Calcular puntos y continuar
+      {isHost && !isResolved && (
+        <>
+          <Button variant="primary" style={{ width: '100%' }} onClick={onResolve} disabled={!readyToValidate}>
+            Validar y calcular puntos
+          </Button>
+          {!readyToValidate && (
+            <p style={{ fontSize: 12, color: '#6b7590', marginTop: 8 }}>
+              Faltan {pendingCount} respuesta{pendingCount === 1 ? '' : 's'} por validar.
+            </p>
+          )}
+        </>
+      )}
+
+      {isHost && isResolved && (
+        <Button variant="stop" style={{ width: '100%' }} onClick={onContinue}>
+          Continuar
         </Button>
       )}
     </>
@@ -598,16 +847,47 @@ function RoundScoreboard({
 // ---------------------------------------------------------------
 // Resultado final
 // ---------------------------------------------------------------
-function FinalResults({ players }: { players: Player[] }) {
+function FinalResults({ players, me, code }: { players: Player[]; me: Player | null; code: string }) {
   const sorted = [...players].sort((a, b) => b.total_score - a.total_score);
+  const mySelfie = getStoredSelfie(GAME_TYPE, code);
+
   return (
     <>
       <div style={{ marginBottom: 18 }}>
         <Stamp>FIN DE LA PARTIDA</Stamp>
       </div>
       <ScoreTable
-        headers={['#', 'Jugador', 'Puntos']}
-        rows={sorted.map((p, i) => ({ key: p.id, cells: [i + 1, p.nickname, p.total_score] }))}
+        headers={['', '#', 'Jugador', 'Puntos']}
+        rows={sorted.map((p, i) => ({
+          key: p.id,
+          cells: [
+            p.id === me?.id && mySelfie ? (
+              <img
+                src={mySelfie}
+                alt={p.nickname}
+                style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: '#e8eaf2',
+                  fontSize: 12,
+                }}
+              >
+                {p.nickname.charAt(0).toUpperCase()}
+              </span>
+            ),
+            i + 1,
+            p.nickname,
+            p.total_score,
+          ],
+        }))}
       />
       <p style={{ marginTop: 16 }}>
         <a href="/ranking?game=categorias-rapidas" style={{ color: 'var(--ink-blue)' }}>Ver ranking global (top 5) →</a>
