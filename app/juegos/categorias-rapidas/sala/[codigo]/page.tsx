@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PlayerChip } from '@/components/ui/PlayerChip';
 import { ScoreTable } from '@/components/ui/ScoreTable';
+import { Podium } from '@/components/ui/Podium';
 import { Stamp } from '@/components/ui/Stamp';
 
 const GAME_TYPE = 'categorias-rapidas';
@@ -592,11 +593,6 @@ function GameBoard({
         <div className="letter-card">{letter}</div>
         <div style={{ textAlign: 'right' }}>
           <div className="timer">{secondsLeft ?? '--'}s</div>
-          {isHost && (
-            <Button variant="stop" onClick={onStop}>
-              ¡Stop!
-            </Button>
-          )}
         </div>
       </div>
 
@@ -616,6 +612,19 @@ function GameBoard({
       <p style={{ fontSize: 12, color: '#6b7590', marginTop: 16 }}>
         Tus respuestas se guardan automáticamente mientras escribes.
       </p>
+
+      {isHost && (
+        <>
+          <button
+            onClick={onStop}
+            className="btn btn-stop stop-fab"
+            aria-label="Terminar la ronda ahora"
+          >
+            ¡Stop!
+          </button>
+          <div style={{ height: 84 }} />
+        </>
+      )}
     </>
   );
 }
@@ -850,45 +859,47 @@ function RoundScoreboard({
 function FinalResults({ players, me, code }: { players: Player[]; me: Player | null; code: string }) {
   const sorted = [...players].sort((a, b) => b.total_score - a.total_score);
   const mySelfie = getStoredSelfie(GAME_TYPE, code);
+  const rest = sorted.slice(3);
+
+  const renderAvatar = (p: { id: string; nickname: string }) =>
+    p.id === me?.id && mySelfie ? (
+      <img
+        src={mySelfie}
+        alt={p.nickname}
+        style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }}
+      />
+    ) : (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 48,
+          height: 48,
+          borderRadius: '50%',
+          background: '#e8eaf2',
+          fontSize: 16,
+        }}
+      >
+        {p.nickname.charAt(0).toUpperCase()}
+      </span>
+    );
 
   return (
     <>
       <div style={{ marginBottom: 18 }}>
         <Stamp>FIN DE LA PARTIDA</Stamp>
       </div>
-      <ScoreTable
-        headers={['', '#', 'Jugador', 'Puntos']}
-        rows={sorted.map((p, i) => ({
-          key: p.id,
-          cells: [
-            p.id === me?.id && mySelfie ? (
-              <img
-                src={mySelfie}
-                alt={p.nickname}
-                style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
-              />
-            ) : (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  background: '#e8eaf2',
-                  fontSize: 12,
-                }}
-              >
-                {p.nickname.charAt(0).toUpperCase()}
-              </span>
-            ),
-            i + 1,
-            p.nickname,
-            p.total_score,
-          ],
-        }))}
-      />
+
+      <Podium players={sorted} renderAvatar={renderAvatar} />
+
+      {rest.length > 0 && (
+        <ScoreTable
+          headers={['#', 'Jugador', 'Puntos']}
+          rows={rest.map((p, i) => ({ key: p.id, cells: [i + 4, p.nickname, p.total_score] }))}
+        />
+      )}
+
       <p style={{ marginTop: 16 }}>
         <a href="/ranking?game=categorias-rapidas" style={{ color: 'var(--ink-blue)' }}>Ver ranking global (top 5) →</a>
       </p>

@@ -141,6 +141,34 @@ h1.title {
   color: white;
 }
 
+/* Botón "¡Stop!" flotante: fijo respecto a la pantalla (no al scroll de la
+   página) y más grande, para que quien vaya ganando la ronda pueda
+   presionarlo sin tener que desplazarse hasta el encabezado. */
+.stop-fab {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 50;
+  font-size: 22px;
+  padding: 20px 48px;
+  border-radius: 999px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+}
+
+.stop-fab:active {
+  transform: translateX(-50%) scale(0.96);
+}
+
+@media (max-width: 480px) {
+  .stop-fab {
+    font-size: 18px;
+    padding: 16px 36px;
+    width: calc(100% - 48px);
+    max-width: 320px;
+  }
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--ink-blue);
