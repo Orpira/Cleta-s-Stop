@@ -370,7 +370,6 @@ export default function CategoriasRapidasRoomPage() {
           setDraft={setDraft}
           secondsLeft={secondsLeft}
           onSave={saveMyAnswers}
-          isHost={isHost}
           onStop={endRound}
         />
       )}
@@ -574,7 +573,6 @@ function GameBoard({
   setDraft,
   secondsLeft,
   onSave,
-  isHost,
   onStop,
 }: {
   letter: string;
@@ -584,7 +582,6 @@ function GameBoard({
   setDraft: (d: Record<string, string>) => void;
   secondsLeft: number | null;
   onSave: () => void;
-  isHost: boolean;
   onStop: () => void;
 }) {
   return (
@@ -613,18 +610,14 @@ function GameBoard({
         Tus respuestas se guardan automáticamente mientras escribes.
       </p>
 
-      {isHost && (
-        <>
-          <button
-            onClick={onStop}
-            className="btn btn-stop stop-fab"
-            aria-label="Terminar la ronda ahora"
-          >
-            ¡Stop!
-          </button>
-          <div style={{ height: 84 }} />
-        </>
-      )}
+      <button
+        onClick={onStop}
+        className="btn btn-stop stop-fab"
+        aria-label="Terminar la ronda ahora"
+      >
+        ¡Stop!
+      </button>
+      <div style={{ height: 84 }} />
     </>
   );
 }
