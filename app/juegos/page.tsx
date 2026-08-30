@@ -35,6 +35,14 @@ const GAMES: Game[] = [
     emblemBg: 'var(--stamp-red)',
     emblemColor: 'var(--paper)',
   },
+  {
+    href: '/juegos/puntos-cajas',
+    title: 'Puntos y Cajas',
+    description: 'Juego de conectar puntos y formar cajas: completas una y juegas de nuevo.',
+    emblem: '◯▢',
+    emblemBg: 'var(--highlight)',
+    emblemColor: '#2c3e50',
+  },
 ];
 
 export default function JuegosPage() {
