@@ -12,13 +12,19 @@ export interface PuntosCajasBoardState {
   grid_dots: number;
   horizontal_lines: boolean[]; // líneas entre puntos horizontalmente adyacentes
   vertical_lines: boolean[]; // líneas entre puntos verticalmente adyacentes
+  horizontal_owners: (string | null)[]; // player_id que trazó cada línea horizontal, o null
+  vertical_owners: (string | null)[]; // player_id que trazó cada línea vertical, o null
   boxes: (string | null)[]; // player_id dueño de cada caja, o null si no está completa
   turn_order: string[]; // player_ids en orden de turno
   turn: string; // player_id de quien le toca mover ahora
+  turn_started_at: string; // ISO timestamp de cuándo empezó el turno actual (para el temporizador)
   scores: Record<string, number>; // player_id -> cajas ganadas
   finished: boolean;
   winner: string | 'draw' | null; // player_id, empate, o null si sigue en curso
 }
+
+/** Segundos que tiene cada jugador para mover antes de que se pase el turno. */
+export const TURN_SECONDS = 20;
 
 export interface PuntosCajasRound {
   id: string;
@@ -129,13 +135,17 @@ export function drawLine(
     throw new Error(`La línea ${lineType}${lineIndex + 1} ya está trazada`);
   }
 
-  // 3. Marcar la línea (copias inmutables)
+  // 3. Marcar la línea y su dueño (copias inmutables)
   const newH = [...state.horizontal_lines];
   const newV = [...state.vertical_lines];
+  const newHOwners = [...state.horizontal_owners];
+  const newVOwners = [...state.vertical_owners];
   if (lineType === 'horizontal') {
     newH[lineIndex] = true;
+    newHOwners[lineIndex] = playerId;
   } else {
     newV[lineIndex] = true;
+    newVOwners[lineIndex] = playerId;
   }
 
   const N = state.grid_dots;
@@ -199,9 +209,12 @@ export function drawLine(
     grid_dots: state.grid_dots,
     horizontal_lines: newH,
     vertical_lines: newV,
+    horizontal_owners: newHOwners,
+    vertical_owners: newVOwners,
     boxes: newBoxes,
     turn_order: state.turn_order,
     turn: nextTurn,
+    turn_started_at: new Date().toISOString(),
     scores: newScores,
     finished: false,
     winner: null,
@@ -215,6 +228,18 @@ function nextPlayer(turnOrder: string[], current: string): string {
     return turnOrder[idx + 1];
   }
   return turnOrder[0];
+}
+
+/**
+ * Pasa el turno al siguiente jugador sin trazar ninguna línea.
+ * Se usa cuando se agota el temporizador del turno actual.
+ */
+export function passTurn(state: PuntosCajasBoardState): PuntosCajasBoardState {
+  return {
+    ...state,
+    turn: nextPlayer(state.turn_order, state.turn),
+    turn_started_at: new Date().toISOString(),
+  };
 }
 
 /** Verifica si el tablero está lleno (todas las líneas posibles están trazadas). */

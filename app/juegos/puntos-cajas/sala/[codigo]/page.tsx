@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase, Player, Room } from '@/lib/core/supabaseClient';
 import { getStoredPlayerId } from '@/lib/core/roomActions';
 import {
   drawLine,
+  passTurn,
   isBoardFull,
   getWinner,
   PuntosCajasBoardState,
   PuntosCajasRound,
   horizontalLineCoords,
   verticalLineCoords,
+  TURN_SECONDS,
 } from '@/lib/games/puntos-cajas/gameLogic';
 import { Sheet } from '@/components/ui/Sheet';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +23,15 @@ import { ScoreTable } from '@/components/ui/ScoreTable';
 import { Stamp } from '@/components/ui/Stamp';
 
 const GAME_TYPE = 'puntos-cajas';
+
+// Un color distinto por posición en turn_order (hasta 4 jugadores).
+const PLAYER_COLORS = ['#4A90E2', '#E24A6B', '#3FBF7F', '#E2A64A'];
+
+function colorForPlayer(turnOrder: string[], playerId: string | null): string {
+  if (!playerId) return '#C0C0C0';
+  const idx = turnOrder.indexOf(playerId);
+  return idx >= 0 ? PLAYER_COLORS[idx % PLAYER_COLORS.length] : '#C0C0C0';
+}
 
 export default function PuntosCajasRoomPage() {
   const params = useParams<{ codigo: string }>();
@@ -34,6 +45,41 @@ export default function PuntosCajasRoomPage() {
 
   const me = players.find((p) => p.id === myPlayerId) || null;
   const isHost = !!me?.is_host;
+
+  // --- temporizador de turno: tick cada segundo mientras se está jugando ---
+  const [now, setNow] = useState(() => Date.now());
+  const skippingRef = useRef(false);
+
+  useEffect(() => {
+    if (room?.status !== 'playing' || !round || round.payload.finished) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [room?.status, round?.id, round?.payload?.finished]);
+
+  const turnStartedAt = round?.payload?.turn_started_at;
+  const remainingSeconds = turnStartedAt
+    ? Math.max(0, TURN_SECONDS - Math.floor((now - new Date(turnStartedAt).getTime()) / 1000))
+    : null;
+
+  // Si se me acaba el tiempo a mí, paso mi propio turno (evita que la sala se trabe).
+  useEffect(() => {
+    if (!room || !round || !myPlayerId) return;
+    if (room.status !== 'playing' || round.payload.finished) return;
+    if (round.payload.turn !== myPlayerId) return;
+    if (remainingSeconds !== 0) return;
+    if (skippingRef.current) return;
+
+    skippingRef.current = true;
+    const newState = passTurn(round.payload);
+    supabase
+      .from('rounds')
+      .update({ payload: newState })
+      .eq('id', round.id)
+      .then(() => {
+        setRound({ ...round, payload: newState });
+        skippingRef.current = false;
+      });
+  }, [remainingSeconds, room?.status, round?.payload?.turn]);
 
   // --- carga inicial + suscripción en tiempo real ---
   useEffect(() => {
@@ -102,9 +148,12 @@ export default function PuntosCajasRoomPage() {
       grid_dots: N,
       horizontal_lines: Array(N * (N - 1)).fill(false),
       vertical_lines: Array((N - 1) * N).fill(false),
+      horizontal_owners: Array(N * (N - 1)).fill(null),
+      vertical_owners: Array((N - 1) * N).fill(null),
       boxes: Array((N - 1) * (N - 1)).fill(null),
       turn_order: turnOrder,
       turn: turnOrder[0],
+      turn_started_at: new Date().toISOString(),
       scores,
       finished: false,
       winner: null,
@@ -192,9 +241,12 @@ export default function PuntosCajasRoomPage() {
     grid_dots: N,
     horizontal_lines: [],
     vertical_lines: [],
+    horizontal_owners: [],
+    vertical_owners: [],
     boxes: [],
     turn_order: [],
     turn: '',
+    turn_started_at: new Date().toISOString(),
     scores: {},
     finished: false,
     winner: null,
@@ -214,6 +266,11 @@ export default function PuntosCajasRoomPage() {
           {round.payload.turn === myPlayerId
             ? 'vos'
             : players.find((p) => p.id === round.payload.turn)?.nickname || '—'}
+          {remainingSeconds !== null && (
+            <span style={{ marginLeft: 8, color: remainingSeconds <= 5 ? '#E24A6B' : '#6b7590' }}>
+              ({remainingSeconds}s)
+            </span>
+          )}
         </div>
       )}
 
@@ -222,6 +279,16 @@ export default function PuntosCajasRoomPage() {
         <div style={{ marginBottom: 12, fontSize: 12 }}>
           {players.map((p) => (
             <span key={p.id} style={{ marginRight: 16 }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  background: colorForPlayer(round.payload.turn_order, p.id),
+                  marginRight: 4,
+                }}
+              />
               {p.nickname}: {round.payload.scores[p.id] || 0} pts
             </span>
           ))}
@@ -238,6 +305,8 @@ export default function PuntosCajasRoomPage() {
         gridDots={N}
         horizontalLines={payload.horizontal_lines}
         verticalLines={payload.vertical_lines}
+        horizontalOwners={payload.horizontal_owners}
+        verticalOwners={payload.vertical_owners}
         boxes={payload.boxes}
         turnOrder={payload.turn_order}
         turn={payload.turn}
@@ -296,6 +365,8 @@ function Board({
   gridDots,
   horizontalLines,
   verticalLines,
+  horizontalOwners,
+  verticalOwners,
   boxes,
   turnOrder,
   turn,
@@ -306,6 +377,8 @@ function Board({
   gridDots: number;
   horizontalLines: boolean[];
   verticalLines: boolean[];
+  horizontalOwners: (string | null)[];
+  verticalOwners: (string | null)[];
   boxes: (string | null)[];
   turnOrder: string[];
   turn: string;
@@ -333,7 +406,7 @@ function Board({
         width: cellSize,
         height: 8,
         cursor: clickable ? 'pointer' : 'default',
-        backgroundColor: drawn ? '#2D3142' : '#E0E0E0',
+        backgroundColor: drawn ? colorForPlayer(turnOrder, horizontalOwners[i]) : '#E0E0E0',
         borderRadius: 2,
         transition: 'background-color 0.1s',
       },
@@ -355,7 +428,7 @@ function Board({
         width: 8,
         height: cellSize,
         cursor: clickable ? 'pointer' : 'default',
-        backgroundColor: drawn ? '#2D3142' : '#E0E0E0',
+        backgroundColor: drawn ? colorForPlayer(turnOrder, verticalOwners[i]) : '#E0E0E0',
         borderRadius: 2,
         transition: 'background-color 0.1s',
       },
@@ -422,8 +495,8 @@ function Board({
                 top: r * cellSize + 20,
                 width: cellSize,
                 height: cellSize,
-                background: '#4A90E2',
-                opacity: 0.7,
+                background: colorForPlayer(turnOrder, owner),
+                opacity: 0.5,
               }}
             />
           );
