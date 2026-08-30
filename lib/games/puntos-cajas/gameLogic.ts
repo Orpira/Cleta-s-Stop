@@ -18,6 +18,7 @@ export interface PuntosCajasBoardState {
   turn_order: string[]; // player_ids en orden de turno
   turn: string; // player_id de quien le toca mover ahora
   turn_started_at: string; // ISO timestamp de cuándo empezó el turno actual (para el temporizador)
+  bonus_seconds: number; // segundos extra para el turno actual (se otorgan cuando el rival pierde el suyo por tiempo)
   scores: Record<string, number>; // player_id -> cajas ganadas
   finished: boolean;
   winner: string | 'draw' | null; // player_id, empate, o null si sigue en curso
@@ -215,6 +216,7 @@ export function drawLine(
     turn_order: state.turn_order,
     turn: nextTurn,
     turn_started_at: new Date().toISOString(),
+    bonus_seconds: 0,
     scores: newScores,
     finished: false,
     winner: null,
@@ -231,14 +233,16 @@ function nextPlayer(turnOrder: string[], current: string): string {
 }
 
 /**
- * Pasa el turno al siguiente jugador sin trazar ninguna línea.
- * Se usa cuando se agota el temporizador del turno actual.
+ * Pasa el turno al siguiente jugador sin trazar ninguna línea, porque
+ * se agotó el temporizador del turno actual. Como compensación, el
+ * siguiente jugador arranca su turno con TURN_SECONDS extra.
  */
 export function passTurn(state: PuntosCajasBoardState): PuntosCajasBoardState {
   return {
     ...state,
     turn: nextPlayer(state.turn_order, state.turn),
     turn_started_at: new Date().toISOString(),
+    bonus_seconds: TURN_SECONDS,
   };
 }
 

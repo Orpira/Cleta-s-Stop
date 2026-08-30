@@ -57,8 +57,9 @@ export default function PuntosCajasRoomPage() {
   }, [room?.status, round?.id, round?.payload?.finished]);
 
   const turnStartedAt = round?.payload?.turn_started_at;
+  const turnDuration = TURN_SECONDS + (round?.payload?.bonus_seconds || 0);
   const remainingSeconds = turnStartedAt
-    ? Math.max(0, TURN_SECONDS - Math.floor((now - new Date(turnStartedAt).getTime()) / 1000))
+    ? Math.max(0, turnDuration - Math.floor((now - new Date(turnStartedAt).getTime()) / 1000))
     : null;
 
   // Si se me acaba el tiempo a mí, paso mi propio turno (evita que la sala se trabe).
@@ -154,6 +155,7 @@ export default function PuntosCajasRoomPage() {
       turn_order: turnOrder,
       turn: turnOrder[0],
       turn_started_at: new Date().toISOString(),
+      bonus_seconds: 0,
       scores,
       finished: false,
       winner: null,
@@ -247,6 +249,7 @@ export default function PuntosCajasRoomPage() {
     turn_order: [],
     turn: '',
     turn_started_at: new Date().toISOString(),
+    bonus_seconds: 0,
     scores: {},
     finished: false,
     winner: null,
@@ -510,14 +513,15 @@ function Board({
 // ---------------------------------------------------------------
 function FinalResults({ players, winner, scores, code }: { players: Player[]; winner: string | 'draw' | null; scores: Record<string, number>; code: string }) {
   // Ordenar por puntuación descendente
-  const sorted = [...players]
-    .sort((a, b) => (scores[b.id || ''] || 0) - (scores[a.id || ''] || 0))
-    .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+  const sorted = [...players].sort((a, b) => (scores[b.id] || 0) - (scores[a.id] || 0));
+
+  const winnerName =
+    winner && winner !== 'draw' ? players.find((p) => p.id === winner)?.nickname : null;
 
   return (
     <Sheet brand="orpira.es · sala" maxWidth={480}>
       <div style={{ marginBottom: 18 }}>
-        <Stamp>{winner === 'draw' ? 'EMPATE' : `GANÓ ${winner?.toUpperCase()}`}</Stamp>
+        <Stamp>{winner === 'draw' ? 'EMPATE' : `GANÓ ${(winnerName || '').toUpperCase()}`}</Stamp>
       </div>
 
       <ScoreTable
