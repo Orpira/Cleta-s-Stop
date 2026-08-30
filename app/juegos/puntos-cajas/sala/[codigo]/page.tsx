@@ -92,15 +92,20 @@ export default function PuntosCajasRoomPage() {
   async function startGame() {
     if (!room) return;
 
+    const N = room.settings?.grid_dots || 5;
+    const turnOrder = players.map((p) => p.id);
+    const scores: Record<string, number> = {};
+    turnOrder.forEach((id) => { scores[id] = 0; });
+
     // Estado inicial vacío del tablero
     const emptyState: PuntosCajasBoardState = {
-      grid_dots: room.settings?.grid_dots || 5,
-      horizontal_lines: [],
-      vertical_lines: [],
-      boxes: [],
-      turn_order: [],
-      turn: '',
-      scores: {},
+      grid_dots: N,
+      horizontal_lines: Array(N * (N - 1)).fill(false),
+      vertical_lines: Array((N - 1) * N).fill(false),
+      boxes: Array((N - 1) * (N - 1)).fill(null),
+      turn_order: turnOrder,
+      turn: turnOrder[0],
+      scores,
       finished: false,
       winner: null,
     };
@@ -122,7 +127,11 @@ export default function PuntosCajasRoomPage() {
     if (state.finished) return;
 
     try {
-      const newState = drawLine(state, lineType, lineIndex, myPlayerId);
+      let newState = drawLine(state, lineType, lineIndex, myPlayerId);
+
+      if (isBoardFull(newState)) {
+        newState = { ...newState, finished: true, winner: getWinner(newState.scores) };
+      }
 
       await supabase
         .from('rounds')
@@ -134,6 +143,10 @@ export default function PuntosCajasRoomPage() {
         payload: newState,
         ...(newState.finished && { ended_at: new Date().toISOString() }),
       });
+
+      if (newState.finished) {
+        await finishGame(newState.scores);
+      }
     } catch (e: any) {
       // Error de validación (no es turno, línea ya trazada)
       console.error(e.message);
@@ -141,14 +154,13 @@ export default function PuntosCajasRoomPage() {
   }
 
   // --- finalizar partida y actualizar leaderboard ---
-  async function finishGame() {
+  async function finishGame(scores: Record<string, number>) {
     if (!room) return;
-    const winner = getWinner(round?.payload?.scores || {});
     await supabase.from('rooms').update({ status: 'finished' }).eq('id', room.id);
 
     // Actualizar leaderboard para cada jugador
     for (const p of players) {
-      const score = round?.payload?.scores[p.id] || 0;
+      const score = scores[p.id] || 0;
       await supabase.from('leaderboard').upsert({
         nickname: p.nickname,
         game_type: GAME_TYPE,
@@ -214,7 +226,7 @@ export default function PuntosCajasRoomPage() {
       )}
 
       {/* Tablero de juego */}
-      {room.status === 'lobby' && round && round.payload && round.payload.turn_order.length === 0 && room.current_round === 1 && (
+      {room.status === 'lobby' && room.current_round === 0 && (
         <Lobby players={players} isHost={isHost} onStart={startGame} />
       )}
 
