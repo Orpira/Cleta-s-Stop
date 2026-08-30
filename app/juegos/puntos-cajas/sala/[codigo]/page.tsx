@@ -208,9 +208,12 @@ export default function PuntosCajasRoomPage() {
       </div>
 
       {/* Información de turno */}
-      {round && round.payload && (
+      {round && round.payload && !round.payload.finished && (
         <div style={{ marginBottom: 12, fontSize: 13 }}>
-          <strong>Turno de:</strong> {round.payload.turn || '—'}
+          <strong>Turno de:</strong>{' '}
+          {round.payload.turn === myPlayerId
+            ? 'vos'
+            : players.find((p) => p.id === round.payload.turn)?.nickname || '—'}
         </div>
       )}
 
@@ -316,50 +319,47 @@ function Board({
   // Determinar si el jugador actual puede mover
   const canMove = !finished && turn === myPlayerId;
 
-  // Calcular estilos de líneas horizontales
-  const hLineStyles: React.CSSProperties[] = [];
+  // Calcular estilos + manejador de clic de líneas horizontales
+  const hLines: { style: React.CSSProperties; onClick?: () => void }[] = [];
   for (let i = 0; i < N * (N - 1); i++) {
     const { row, col } = horizontalLineCoords(N, i);
-    const takenBy = boxes?.[i] || null;
-    hLineStyles.push({
-      position: 'absolute',
-      left: col * (cellSize / (N - 1)) + 20,
-      top: row * cellSize + 20,
-      width: cellSize / (N - 1) - 4,
-      height: 4,
-      backgroundColor: takenBy ? '#4A90E2' : '#C0C0C0',
-      borderRadius: 2,
-      transition: 'background-color 0.1s',
+    const drawn = !!horizontalLines[i];
+    const clickable = canMove && !drawn;
+    hLines.push({
+      style: {
+        position: 'absolute',
+        left: col * cellSize + 20,
+        top: row * cellSize + 18,
+        width: cellSize,
+        height: 8,
+        cursor: clickable ? 'pointer' : 'default',
+        backgroundColor: drawn ? '#2D3142' : '#E0E0E0',
+        borderRadius: 2,
+        transition: 'background-color 0.1s',
+      },
+      onClick: clickable ? () => onLineClick('horizontal', i) : undefined,
     });
   }
 
-  // Calcular estilos de líneas verticales
-  const vLineStyles: React.CSSProperties[] = [];
+  // Calcular estilos + manejador de clic de líneas verticales
+  const vLines: { style: React.CSSProperties; onClick?: () => void }[] = [];
   for (let i = 0; i < (N - 1) * N; i++) {
     const { row, col } = verticalLineCoords(N, i);
-    // Determinar qué caja toca esta línea vertical
-    // Una línea vertical en (row, col) toca la caja a su izquierda (col-1) y a su derecha (col)
-    // Para simplificar, coloreamos si alguna caja adyacente está completada con este jugador
-    let takenBy: string | null = null;
-    // Caja de la izquierda
-    if (col > 0) {
-      const boxIdx = row * (N - 1) + (col - 1);
-      if (boxes[boxIdx] === myPlayerId) takenBy = myPlayerId;
-    }
-    // Caja de la derecha
-    if (col < N - 1 && takenBy === null) {
-      const boxIdx = row * (N - 1) + col;
-      if (boxes[boxIdx] === myPlayerId) takenBy = myPlayerId;
-    }
-
-    vLineStyles.push({
-      position: 'absolute',
-      left: col * cellSize + 20,
-      top: row * cellSize + 20,
-      width: 4,
-      height: cellSize,
-      backgroundColor: takenBy ? '#4A90E2' : '#C0C0C0',
-      borderRadius: 2,
+    const drawn = !!verticalLines[i];
+    const clickable = canMove && !drawn;
+    vLines.push({
+      style: {
+        position: 'absolute',
+        left: col * cellSize + 18,
+        top: row * cellSize + 20,
+        width: 8,
+        height: cellSize,
+        cursor: clickable ? 'pointer' : 'default',
+        backgroundColor: drawn ? '#2D3142' : '#E0E0E0',
+        borderRadius: 2,
+        transition: 'background-color 0.1s',
+      },
+      onClick: clickable ? () => onLineClick('vertical', i) : undefined,
     });
   }
 
@@ -396,13 +396,13 @@ function Board({
         })}
 
       {/* Líneas horizontales */}
-      {hLineStyles.map((s, i) => (
-        <div key={i} style={s} />
+      {hLines.map((l, i) => (
+        <div key={i} style={l.style} onClick={l.onClick} />
       ))}
 
       {/* Líneas verticales */}
-      {vLineStyles.map((s, i) => (
-        <div key={`v-${i}`} style={s} />
+      {vLines.map((l, i) => (
+        <div key={`v-${i}`} style={l.style} onClick={l.onClick} />
       ))}
 
       {/* Cajas completadas */}
