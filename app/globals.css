@@ -464,3 +464,12 @@ table.scores td {
     grid-template-columns: 1fr;
   }
 }
+
+.notice {
+  font-size: 13px;
+  background: rgba(232, 185, 59, 0.18);
+  border-left: 3px solid var(--highlight);
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 0 0 16px 0;
+}
