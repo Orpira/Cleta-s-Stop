@@ -8,9 +8,20 @@ interface Game {
   emblem: string;
   emblemBg: string;
   emblemColor: string;
+  /** Juego desplegado en otra app/dominio: se abre en una pestaña nueva. */
+  external?: boolean;
 }
 
 const GAMES: Game[] = [
+  {
+    href: 'https://domino-3d.orpira.es/',
+    title: 'Dominó 3D',
+    description: 'Dominó latino a cuatro en una mesa 3D: contra bots, en el mismo móvil o en salas online.',
+    emblem: '6|6',
+    emblemBg: 'var(--ink)',
+    emblemColor: 'var(--paper)',
+    external: true,
+  },
   {
     href: '/juegos/stop',
     title: '¡Stop!',
@@ -49,22 +60,42 @@ export default function JuegosPage() {
   return (
     <Sheet brand="orpira.es">
       <h1 className="title" style={{ fontSize: 36 }}>Juegos</h1>
-      <p className="subtitle">Elige a qué quieres jugar.</p>
+      <p className="subtitle">Elige a qué quieres jugar: crea una sala y comparte el código con tus amigos.</p>
 
       <div className="game-grid">
-        {GAMES.map((game) => (
-          <Link key={game.href} href={game.href} className="game-card">
-            <div
-              className="game-card-emblem"
-              style={{ background: game.emblemBg, color: game.emblemColor }}
+        {GAMES.map((game) => {
+          const content = (
+            <>
+              <div
+                className="game-card-emblem"
+                style={{ background: game.emblemBg, color: game.emblemColor }}
+              >
+                {game.emblem}
+              </div>
+              <h3>{game.title}</h3>
+              <p>{game.description}</p>
+              <span className="game-card-cta">
+                {game.external ? 'Jugar ↗' : 'Jugar →'}
+                {game.external && <span className="sr-only"> (se abre en otra pestaña)</span>}
+              </span>
+            </>
+          );
+          return game.external ? (
+            <a
+              key={game.href}
+              href={game.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="game-card"
             >
-              {game.emblem}
-            </div>
-            <h3>{game.title}</h3>
-            <p>{game.description}</p>
-            <span className="game-card-cta">Jugar →</span>
-          </Link>
-        ))}
+              {content}
+            </a>
+          ) : (
+            <Link key={game.href} href={game.href} className="game-card">
+              {content}
+            </Link>
+          );
+        })}
       </div>
     </Sheet>
   );
