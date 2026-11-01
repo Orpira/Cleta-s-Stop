@@ -82,6 +82,24 @@ cambiar debajo.
 - [ ] Selfie con una foto del móvil: se guarda y aparece en el podio.
 - [ ] `/ranking?game=stop` y "Volver a jugar" llevan a ¡Stop!.
 
+## ¡Stop! — experiencia (rama `feat/stop-experiencia`)
+
+- [ ] Al empezar ronda, la letra gira y cae con sonido en todos los móviles
+      (con "Sonidos" activado y tras haber tocado la página). Al recargar en
+      mitad de la ronda no vuelve a girar.
+- [ ] Últimos 10 s: reloj y barra en rojo; últimos 5 s: pitidos, y en
+      Android vibración en 3, 2, 1.
+- [ ] Al pulsar ¡Stop!: sello grande en pantalla, zumbido y vibración en
+      todos; la revisión dice quién lo cantó, o "¡TIEMPO!" si se acabó.
+- [ ] Durante la ronda se ve cuántas categorías lleva cada jugador y se
+      actualiza al escribir los demás. "✓ Respuestas guardadas" al guardar.
+- [ ] Al calcular puntos: sonido y "Tu ronda: +N pts".
+- [ ] Marcador entre rondas: puntos de la ronda, flechas al cambiar de
+      puesto, quién va en cabeza y "Última ronda" antes de la última.
+- [ ] Final: confeti, fanfarria y "Has ganado" / puesto.
+- [ ] "Sonidos" desactivado se recuerda al volver a entrar y silencia todo.
+- [ ] Con "reducir movimiento" del sistema activado no hay animaciones.
+
 ## Cómo se corrió la última vez
 
 Verificado con scripts de Playwright ad-hoc (headless, usando el Chrome ya

@@ -18,6 +18,7 @@ import {
 import { getRecentLetters, rememberLetter } from '@/lib/games/shared/letterHistory';
 import { getHintWord } from '@/lib/games/shared/wordBank';
 import { createRoundMusic } from '@/lib/games/shared/roundMusic';
+import { createSoundEffects, readSoundPreference, SoundEffects, storeSoundPreference } from '@/lib/games/shared/soundEffects';
 import { getStoredSelfie, shrinkSelfie, storeSelfie } from '@/lib/games/shared/selfieStorage';
 import { StopRoom, StopSettings } from '@/lib/games/stop/gameLogic';
 import { Sheet } from '@/components/ui/Sheet';
@@ -38,6 +39,18 @@ const NON_HOST_END_GRACE_S = 6;
 /** Tiempo sin ver al anfitrión conectado antes de que otro tome el relevo. */
 const HOST_HANDOVER_MS = 45000;
 const CLOCK_OFFSET_KEY = 'server_clock_offset_ms';
+/** La ruleta de la letra sólo se anima si la ronda acaba de empezar (no al recargar). */
+const REVEAL_WINDOW_MS = 4000;
+/** Últimos segundos con cuenta atrás sonora. */
+const COUNTDOWN_FROM = 5;
+/** Últimos segundos con el reloj en alerta. */
+const URGENT_FROM = 10;
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+}
 
 /**
  * Diferencia entre el reloj de este dispositivo y el del servidor
@@ -113,6 +126,12 @@ export default function StopRoomPage() {
   }, []);
   const musicRef = useRef(createRoundMusic());
   const [musicEnabled, setMusicEnabled] = useState(false);
+  const sfxRef = useRef<SoundEffects>(createSoundEffects());
+  const [soundOn, setSoundOn] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [stoppedBy, setStoppedBy] = useState<string | null>(null);
+  const [stopFlash, setStopFlash] = useState(false);
+  const [animateReveal, setAnimateReveal] = useState(false);
 
   const me = players.find((p) => p.id === myPlayerId) || null;
   const isHost = !!me?.is_host;
@@ -143,7 +162,8 @@ export default function StopRoomPage() {
       // la ronda en curso o en revisión (ya con ended_at) se recupera al
       // recargar; antes sólo se recuperaba si no había terminado y la
       // revisión quedaba vacía
-      if (r.status === 'playing' || r.status === 'round_review') {
+      // también entre rondas, para mostrar los puntos de la última ronda
+      if (r.status === 'playing' || r.status === 'round_review' || (r.status === 'lobby' && r.current_round > 0)) {
         const { data: latestRound } = await supabase
           .from('rounds')
           .select('*')
@@ -155,6 +175,7 @@ export default function StopRoomPage() {
           setRoundId(latestRound.id);
           setRoundStartedAt(latestRound.started_at);
           setRoundNumber(latestRound.round_number);
+          setStoppedBy(latestRound.stopped_by ?? null);
         }
       }
 
@@ -229,6 +250,8 @@ export default function StopRoomPage() {
         setRoundId(payload.new.id as string);
         setRoundStartedAt(payload.new.started_at as string);
         setRoundNumber(payload.new.round_number as number);
+        setStoppedBy(null);
+        setSaveStatus('idle');
         setAnswers([]);
         setVotes([]);
         setDraft({});
@@ -311,10 +334,18 @@ export default function StopRoomPage() {
       category,
       word: snapshot[category],
     }));
+    setSaveStatus('saving');
     const { error: saveError } = await supabase
       .from('answers')
       .upsert(rows, { onConflict: 'round_id,player_id,category' });
-    if (!saveError) lastSavedRef.current = serialized;
+    if (!saveError) {
+      lastSavedRef.current = serialized;
+      setSaveStatus('saved');
+    } else {
+      // sin conexión o error puntual: se reintenta solo
+      setSaveStatus('error');
+      saveTimerRef.current = setTimeout(() => saveMyAnswers(), 3000);
+    }
   }, []);
 
   function updateDraft(category: string, value: string) {
@@ -330,7 +361,70 @@ export default function StopRoomPage() {
     const prev = prevStatusRef.current;
     prevStatusRef.current = room?.status;
     if (prev === 'playing' && room?.status !== 'playing') saveMyAnswers();
+
+    // efectos al cambiar de fase (no al cargar la página: prev indefinido)
+    if (prev === 'playing' && room?.status === 'round_review') {
+      sfxRef.current.stopBuzz();
+      setStopFlash(true);
+      setTimeout(() => setStopFlash(false), 1300);
+      // quién pulsó ¡Stop! (null = se acabó el tiempo)
+      const rId = roundIdRef.current;
+      if (rId) {
+        supabase
+          .from('rounds')
+          .select('stopped_by')
+          .eq('id', rId)
+          .maybeSingle()
+          .then(({ data }) => setStoppedBy((data as any)?.stopped_by ?? null));
+      }
+    }
+    if (prev && prev !== 'finished' && room?.status === 'finished') {
+      sfxRef.current.fanfare();
+    }
   }, [room?.status, saveMyAnswers]);
+
+  // --- sonidos: preferencia guardada y desbloqueo con el primer toque ---
+  useEffect(() => {
+    const on = readSoundPreference();
+    setSoundOn(on);
+    sfxRef.current.setEnabled(on);
+    const sfx = sfxRef.current;
+    const unlock = () => sfx.unlock();
+    window.addEventListener('pointerdown', unlock, { capture: true });
+    window.addEventListener('keydown', unlock, { capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock, { capture: true });
+      window.removeEventListener('keydown', unlock, { capture: true });
+      sfx.dispose();
+    };
+  }, []);
+
+  function toggleSound() {
+    const next = !soundOn;
+    setSoundOn(next);
+    storeSoundPreference(next);
+    sfxRef.current.setEnabled(next);
+  }
+
+  // la ruleta de la letra se anima sólo si la ronda acaba de empezar
+  useEffect(() => {
+    if (!roundStartedAt) return;
+    const serverNow = Date.now() - (clockOffsetRef.current ?? 0);
+    setAnimateReveal(serverNow - Date.parse(roundStartedAt) < REVEAL_WINDOW_MS);
+  }, [roundStartedAt]);
+
+  // cuenta atrás sonora de los últimos segundos
+  const lastTickRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (room?.status !== 'playing' || secondsLeft === null) {
+      lastTickRef.current = null;
+      return;
+    }
+    if (secondsLeft >= 1 && secondsLeft <= COUNTDOWN_FROM && lastTickRef.current !== secondsLeft) {
+      lastTickRef.current = secondsLeft;
+      sfxRef.current.countdownTick(secondsLeft);
+    }
+  }, [secondsLeft, room?.status]);
 
   // --- fin de ronda (idempotente: sólo pasa a revisión si la sala sigue
   // jugando esa misma ronda, así no importa quién ni cuántos lo llamen) ---
@@ -556,9 +650,24 @@ export default function StopRoomPage() {
     <div className="row" style={{ alignItems: 'baseline', marginBottom: 8 }}>
       <h1 className="title" style={{ fontSize: 34 }}>¡Stop!</h1>
       <span className="code-display">{room.code}</span>
-      <Button variant="ghost" style={{ fontSize: 12, padding: '6px 10px', flex: '0 0 auto' }} onClick={toggleMusic}>
-        {musicEnabled ? '🔊 Música' : '🔇 Música'}
-      </Button>
+      <span className="row" style={{ gap: 6, flex: '0 0 auto' }}>
+        <Button
+          variant="ghost"
+          style={{ fontSize: 12, padding: '6px 10px', flex: '0 0 auto' }}
+          onClick={toggleSound}
+          aria-pressed={soundOn}
+        >
+          {soundOn ? '🔔 Sonidos' : '🔕 Sonidos'}
+        </Button>
+        <Button
+          variant="ghost"
+          style={{ fontSize: 12, padding: '6px 10px', flex: '0 0 auto' }}
+          onClick={toggleMusic}
+          aria-pressed={musicEnabled}
+        >
+          {musicEnabled ? '🔊 Música' : '🔇 Música'}
+        </Button>
+      </span>
     </div>
   );
 
@@ -610,6 +719,8 @@ export default function StopRoomPage() {
           totalRounds={settings.rounds_to_play}
           isHost={isHost}
           onNext={nextRound}
+          answers={answers}
+          meId={myPlayerId}
         />
       )}
 
@@ -622,7 +733,14 @@ export default function StopRoomPage() {
           onChange={updateDraft}
           onSave={saveMyAnswers}
           secondsLeft={secondsLeft}
+          secondsTotal={settings.round_seconds}
           onStop={handleStop}
+          animateReveal={animateReveal}
+          sfx={sfxRef.current}
+          saveStatus={saveStatus}
+          players={players}
+          answers={answers}
+          meId={myPlayerId}
         />
       )}
 
@@ -639,10 +757,18 @@ export default function StopRoomPage() {
           isHost={isHost}
           onResolve={resolveRoundScores}
           onContinue={continueAfterReview}
+          stoppedByName={stoppedBy ? players.find((p) => p.id === stoppedBy)?.nickname ?? null : null}
+          sfx={sfxRef.current}
         />
       )}
 
       {room.status === 'finished' && <FinalResults players={players} me={me} code={code} />}
+
+      {stopFlash && (
+        <div className="stop-flash" aria-hidden="true">
+          <Stamp>¡STOP!</Stamp>
+        </div>
+      )}
     </Sheet>
   );
 }
@@ -981,7 +1107,14 @@ function GameBoard({
   onChange,
   onSave,
   secondsLeft,
+  secondsTotal,
   onStop,
+  animateReveal,
+  sfx,
+  saveStatus,
+  players,
+  answers,
+  meId,
 }: {
   letter: string;
   categories: string[];
@@ -990,9 +1123,23 @@ function GameBoard({
   onChange: (category: string, value: string) => void;
   onSave: () => void;
   secondsLeft: number | null;
+  secondsTotal: number;
   onStop: () => void;
+  animateReveal: boolean;
+  sfx: SoundEffects;
+  saveStatus: SaveStatus;
+  players: Player[];
+  answers: Answer[];
+  meId: string | null;
 }) {
   const [stopping, setStopping] = useState(false);
+  const urgent = secondsLeft !== null && secondsLeft <= URGENT_FROM;
+  const pct = secondsLeft !== null && secondsTotal > 0 ? Math.max(0, Math.min(100, (secondsLeft / secondsTotal) * 100)) : 100;
+  const myFilled = categories.filter((c) => (draft[c] || '').trim()).length;
+  const filledOf = (playerId: string) =>
+    playerId === meId
+      ? myFilled
+      : answers.filter((a) => a.player_id === playerId && a.word.trim()).length;
 
   // Enter pasa a la siguiente categoría (en el móvil, la tecla "Siguiente")
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>, index: number) {
@@ -1014,12 +1161,35 @@ function GameBoard({
 
   return (
     <>
-      <div className="row" style={{ alignItems: 'center', marginBottom: 24 }}>
-        <div className="letter-card">{letter}</div>
+      <div className="row" style={{ alignItems: 'center', marginBottom: 12 }}>
+        <LetterReveal key={letter} letter={letter} animate={animateReveal} sfx={sfx} />
         <div style={{ textAlign: 'right' }}>
-          <div className="timer" aria-live="off">{secondsLeft ?? '--'}s</div>
+          <div className={urgent ? 'timer timer-urgent' : 'timer'} aria-live="off">
+            {secondsLeft ?? '--'}s
+          </div>
         </div>
       </div>
+
+      <div
+        className="timebar"
+        role="progressbar"
+        aria-label="Tiempo restante"
+        aria-valuemin={0}
+        aria-valuemax={secondsTotal}
+        aria-valuenow={secondsLeft ?? secondsTotal}
+      >
+        <div className={urgent ? 'timebar-fill timebar-urgent' : 'timebar-fill'} style={{ width: `${pct}%` }} />
+      </div>
+
+      {players.length > 1 && (
+        <div className="progress-chips" aria-label="Categorías rellenadas por jugador">
+          {players.map((p) => (
+            <span key={p.id} className={p.id === meId ? 'progress-chip progress-chip-me' : 'progress-chip'}>
+              {p.id === meId ? 'Tú' : p.nickname} · {filledOf(p.id)}/{categories.length}
+            </span>
+          ))}
+        </div>
+      )}
 
       {showHints && <HintTicker letter={letter} categories={categories} />}
 
@@ -1042,8 +1212,11 @@ function GameBoard({
         </div>
       ))}
 
-      <p style={{ fontSize: 12, color: '#6b7590', marginTop: 16 }}>
-        Tus respuestas se guardan automáticamente mientras escribes.
+      <p className="save-status" aria-live="polite">
+        {saveStatus === 'saving' && 'Guardando…'}
+        {saveStatus === 'saved' && '✓ Respuestas guardadas'}
+        {saveStatus === 'error' && 'No se pudo guardar. Se reintentará en unos segundos.'}
+        {saveStatus === 'idle' && 'Tus respuestas se guardan solas mientras escribes.'}
       </p>
 
       <button
@@ -1056,6 +1229,61 @@ function GameBoard({
       </button>
       <div style={{ height: 84 }} />
     </>
+  );
+}
+
+// ---------------------------------------------------------------
+// Letra de la ronda: si la ronda acaba de empezar, una ruleta de letras
+// que se va frenando hasta caer en la sorteada (con sonido)
+// ---------------------------------------------------------------
+const REVEAL_LETTERS = 'ABCDEFGHIJLMNOPRSTUVZ';
+
+function LetterReveal({ letter, animate, sfx }: { letter: string; animate: boolean; sfx: SoundEffects }) {
+  const [shown, setShown] = useState(letter);
+  const [landed, setLanded] = useState(!animate);
+
+  useEffect(() => {
+    if (!animate) {
+      setShown(letter);
+      setLanded(true);
+      return;
+    }
+    if (prefersReducedMotion()) {
+      setShown(letter);
+      setLanded(true);
+      sfx.letterLand();
+      return;
+    }
+    const steps = 12;
+    let i = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    setLanded(false);
+    const step = () => {
+      if (i >= steps) {
+        setShown(letter);
+        setLanded(true);
+        sfx.letterLand();
+        return;
+      }
+      const pool = REVEAL_LETTERS.replace(letter, '');
+      setShown(pool[Math.floor(Math.random() * pool.length)]);
+      sfx.letterTick();
+      i++;
+      timer = setTimeout(step, 50 + i * i * 1.5); // se va frenando
+    };
+    step();
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [letter, animate]);
+
+  return (
+    <div
+      className={landed ? 'letter-card letter-landed' : 'letter-card letter-spinning'}
+      role="status"
+      aria-label={landed ? `Letra de la ronda: ${letter}` : 'Sorteando la letra'}
+    >
+      {shown}
+    </div>
   );
 }
 
@@ -1138,6 +1366,8 @@ function RoundReview({
   isHost,
   onResolve,
   onContinue,
+  stoppedByName,
+  sfx,
 }: {
   answers: Answer[];
   players: Player[];
@@ -1150,6 +1380,8 @@ function RoundReview({
   isHost: boolean;
   onResolve: (force?: boolean) => void;
   onContinue: () => void;
+  stoppedByName: string | null;
+  sfx: SoundEffects;
 }) {
   const myVote = (answerId: string) => votes.find((v) => v.answer_id === answerId && v.voter_id === me?.id)?.valid;
   const nameOf = (id: string) => players.find((p) => p.id === id)?.nickname || '—';
@@ -1166,12 +1398,29 @@ function RoundReview({
     return false;
   }).length;
 
+  // sonido cuando se calculan los puntos (no al recargar una ronda ya resuelta)
+  const wasResolvedRef = useRef(isResolved);
+  useEffect(() => {
+    if (isResolved && !wasResolvedRef.current) sfx.pointsChime();
+    wasResolvedRef.current = isResolved;
+  }, [isResolved, sfx]);
+
+  const myRoundPoints = me ? answers.filter((a) => a.player_id === me.id).reduce((sum, a) => sum + (a.points || 0), 0) : 0;
+
   return (
     <>
       <div style={{ marginBottom: 18 }}>
-        <Stamp>¡STOP!</Stamp>
+        <Stamp>{stoppedByName ? '¡STOP!' : '¡TIEMPO!'}</Stamp>
       </div>
-      <p className="subtitle">Revisión de la ronda.</p>
+      <p className="subtitle">
+        {stoppedByName ? `${stoppedByName} cantó ¡Stop!` : 'Se acabó el tiempo.'} Revisión de la ronda.
+      </p>
+
+      {isResolved && me && (
+        <div className="round-points" role="status">
+          Tu ronda: <strong>+{myRoundPoints} pts</strong>
+        </div>
+      )}
 
       {categories.map((cat) => (
         <div key={cat} style={{ marginBottom: 16 }}>
@@ -1278,27 +1527,62 @@ function RoundScoreboard({
   totalRounds,
   isHost,
   onNext,
+  answers,
+  meId,
 }: {
   players: Player[];
   currentRound: number;
   totalRounds: number;
   isHost: boolean;
   onNext: () => void;
+  answers: Answer[];
+  meId: string | null;
 }) {
   const sorted = [...players].sort((a, b) => b.total_score - a.total_score);
+  // puntos de la ronda que acaba de terminar y cambio de puesto
+  const gained = (id: string) => answers.filter((a) => a.player_id === id).reduce((sum, a) => sum + (a.points || 0), 0);
+  const before = [...players].sort((a, b) => b.total_score - gained(b.id) - (a.total_score - gained(a.id)));
+  const movement = (id: string, nowIndex: number) => {
+    const prevIndex = before.findIndex((p) => p.id === id);
+    if (currentRound <= 1 || prevIndex === nowIndex) return null;
+    return prevIndex > nowIndex ? (
+      <span className="move move-up" aria-label={`sube ${prevIndex - nowIndex}`}>▲{prevIndex - nowIndex}</span>
+    ) : (
+      <span className="move move-down" aria-label={`baja ${nowIndex - prevIndex}`}>▼{nowIndex - prevIndex}</span>
+    );
+  };
+  const leader = sorted[0];
   return (
     <>
       <p className="subtitle">
         Ronda {currentRound} de {totalRounds} completada.
       </p>
+      {leader && leader.total_score > 0 && (
+        <p style={{ marginTop: -16, marginBottom: 16, fontSize: 14 }}>
+          {leader.id === meId ? '🏆 Vas en cabeza.' : `🏆 Va en cabeza ${leader.nickname}.`}
+          {currentRound + 1 === totalRounds && ' ¡Queda la última ronda!'}
+        </p>
+      )}
       <ScoreTable
-        headers={['#', 'Jugador', 'Puntos']}
-        rows={sorted.map((p, i) => ({ key: p.id, cells: [i + 1, p.nickname, p.total_score] }))}
+        headers={['#', 'Jugador', 'Ronda', 'Total']}
+        rows={sorted.map((p, i) => ({
+          key: p.id,
+          cells: [
+            <>
+              {i + 1} {movement(p.id, i)}
+            </>,
+            p.id === meId ? <strong>{p.nickname} (tú)</strong> : p.nickname,
+            <span className="gain">+{gained(p.id)}</span>,
+            <strong>{p.total_score}</strong>,
+          ],
+        }))}
       />
-      {isHost && (
+      {isHost ? (
         <Button variant="stop" style={{ width: '100%', marginTop: 20 }} onClick={onNext}>
-          Siguiente ronda
+          {currentRound + 1 === totalRounds ? 'Última ronda' : 'Siguiente ronda'}
         </Button>
+      ) : (
+        <p style={{ marginTop: 16, fontSize: 13, color: '#6b7590' }}>Esperando a que el anfitrión empiece la siguiente ronda…</p>
       )}
     </>
   );
@@ -1336,11 +1620,19 @@ function FinalResults({ players, me, code }: { players: Player[]; me: Player | n
       </span>
     );
 
+  const iWon = !!me && sorted[0]?.id === me.id;
+
   return (
     <>
+      <Confetti />
       <div style={{ marginBottom: 18 }}>
         <Stamp>FIN DE LA PARTIDA</Stamp>
       </div>
+      {me && (
+        <p className="subtitle">
+          {iWon ? '¡Has ganado! 🎉' : `Has quedado en el puesto ${sorted.findIndex((p) => p.id === me.id) + 1} de ${sorted.length}.`}
+        </p>
+      )}
 
       <Podium players={sorted} renderAvatar={renderAvatar} />
 
@@ -1358,5 +1650,53 @@ function FinalResults({ players, me, code }: { players: Player[]; me: Player | n
         <a href="/juegos/stop" style={{ color: 'var(--ink-blue)' }}>Jugar otra partida</a>
       </p>
     </>
+  );
+}
+
+// ---------------------------------------------------------------
+// Confeti del final: piezas de CSS que caen una vez (sin librerías). Se
+// omite si el sistema pide reducir el movimiento.
+// ---------------------------------------------------------------
+const CONFETTI_COLORS = ['var(--stamp-red)', 'var(--highlight)', 'var(--ink-blue)', '#3fa36b', '#e57fb0'];
+
+function Confetti() {
+  const [pieces, setPieces] = useState<
+    { left: number; delay: number; duration: number; color: string; rotate: number; size: number }[]
+  >([]);
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    setPieces(
+      Array.from({ length: 70 }, () => ({
+        left: Math.random() * 100,
+        delay: Math.random() * 0.8,
+        duration: 2.2 + Math.random() * 1.6,
+        color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+        rotate: Math.random() * 360,
+        size: 6 + Math.random() * 6,
+      }))
+    );
+    const t = setTimeout(() => setPieces([]), 4800);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (pieces.length === 0) return null;
+  return (
+    <div className="confetti" aria-hidden="true">
+      {pieces.map((p, i) => (
+        <span
+          key={i}
+          style={{
+            left: `${p.left}%`,
+            width: p.size,
+            height: p.size * 0.45,
+            background: p.color,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+            transform: `rotate(${p.rotate}deg)`,
+          }}
+        />
+      ))}
+    </div>
   );
 }
