@@ -473,3 +473,173 @@ table.scores td {
   border-radius: 4px;
   margin: 0 0 16px 0;
 }
+
+/* ---------- ¡Stop!: experiencia de juego ---------- */
+
+.letter-spinning {
+  opacity: 0.85;
+  filter: blur(0.4px);
+}
+
+.letter-landed {
+  animation: letter-pop 420ms cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+@keyframes letter-pop {
+  0% { transform: scale(0.6) rotate(-8deg); }
+  60% { transform: scale(1.12) rotate(3deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+.timer-urgent {
+  display: inline-block;
+  transform-origin: right center;
+  animation: timer-pulse 1s ease-in-out infinite;
+}
+
+@keyframes timer-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+.timebar {
+  height: 8px;
+  background: rgba(43, 76, 126, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.timebar-fill {
+  height: 100%;
+  background: var(--ink-blue);
+  border-radius: 999px;
+  transition: width 0.5s linear, background-color 0.3s ease;
+}
+
+.timebar-urgent {
+  background: var(--stamp-red);
+}
+
+.progress-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.progress-chip {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: white;
+  border: 1px solid rgba(43, 76, 126, 0.15);
+  color: #4b5a76;
+}
+
+.progress-chip-me {
+  border-color: var(--ink-blue);
+  color: var(--ink-blue);
+  font-weight: 700;
+}
+
+.save-status {
+  font-size: 12px;
+  color: #6b7590;
+  margin-top: 16px;
+  min-height: 1.4em;
+}
+
+.stop-flash {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 60;
+  background: rgba(196, 60, 60, 0.12);
+  animation: stop-flash-bg 1.3s ease forwards;
+}
+
+.stop-flash .stamp {
+  font-size: 56px;
+  background: var(--paper);
+  animation: stop-stamp 1.3s cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
+}
+
+@keyframes stop-stamp {
+  0% { transform: scale(2.4) rotate(-14deg); opacity: 0; }
+  25% { transform: scale(1) rotate(-6deg); opacity: 1; }
+  80% { transform: scale(1) rotate(-6deg); opacity: 1; }
+  100% { transform: scale(0.9) rotate(-6deg); opacity: 0; }
+}
+
+@keyframes stop-flash-bg {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.round-points {
+  font-size: 16px;
+  background: white;
+  border-left: 4px solid var(--highlight);
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+  animation: letter-pop 420ms ease;
+}
+
+.gain {
+  color: #2f8a57;
+  font-weight: 700;
+}
+
+.move {
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.move-up {
+  color: #2f8a57;
+}
+
+.move-down {
+  color: var(--stamp-red);
+}
+
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 60;
+}
+
+.confetti span {
+  position: absolute;
+  top: -20px;
+  border-radius: 2px;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.3, 0.6, 0.6, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(40px, 105vh, 0) rotate(540deg); opacity: 0.9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .letter-landed,
+  .timer-urgent,
+  .round-points,
+  .stop-flash,
+  .stop-flash .stamp {
+    animation: none;
+  }
+  .timebar-fill {
+    transition: none;
+  }
+}
