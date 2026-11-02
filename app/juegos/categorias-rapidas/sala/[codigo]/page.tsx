@@ -331,7 +331,7 @@ export default function CategoriasRapidasRoomPage() {
   }
 
   return (
-    <Sheet brand="orpira.es · sala" maxWidth={640}>
+    <Sheet brand="orpira.es · sala" maxWidth={640} leaveWarning={room.status === 'playing' || room.status === 'round_review'}>
       <div className="row" style={{ alignItems: 'baseline', marginBottom: 8 }}>
         <h1 className="title" style={{ fontSize: 34 }}>Categorías rápidas</h1>
         <span className="code-display">{room.code}</span>
@@ -894,7 +894,7 @@ function FinalResults({ players, me, code }: { players: Player[]; me: Player | n
       )}
 
       <p style={{ marginTop: 16 }}>
-        <a href="/ranking?game=categorias-rapidas" style={{ color: 'var(--ink-blue)' }}>Ver ranking global (top 5) →</a>
+        <a href="/ranking?game=categorias-rapidas" style={{ color: 'var(--ink-blue)' }}>Ver el ranking de Categorías rápidas →</a>
       </p>
       <p style={{ marginTop: 8 }}>
         <a href="/juegos/categorias-rapidas" style={{ color: 'var(--ink-blue)' }}>Jugar otra partida</a>

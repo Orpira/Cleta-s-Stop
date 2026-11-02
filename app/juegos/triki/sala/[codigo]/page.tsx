@@ -171,7 +171,7 @@ export default function TrikiRoomPage() {
   }
 
   return (
-    <Sheet brand="orpira.es · sala" maxWidth={480}>
+    <Sheet brand="orpira.es · sala" maxWidth={480} leaveWarning={room.status === 'playing' || room.status === 'round_review'}>
       <div className="row" style={{ alignItems: 'baseline', marginBottom: 8 }}>
         <h1 className="title" style={{ fontSize: 34 }}>Triki</h1>
         <span className="code-display">{room.code}</span>
@@ -345,7 +345,7 @@ function FinalResults({
         rows={sorted.map((p, i) => ({ key: p.id, cells: [i + 1, p.nickname, symbolFor(p), p.total_score] }))}
       />
       <p style={{ marginTop: 16 }}>
-        <a href="/ranking?game=triki" style={{ color: 'var(--ink-blue)' }}>Ver ranking global (top 5) →</a>
+        <a href="/ranking?game=triki" style={{ color: 'var(--ink-blue)' }}>Ver el ranking de Triki →</a>
       </p>
       <p style={{ marginTop: 8 }}>
         <a href="/juegos/triki" style={{ color: 'var(--ink-blue)' }}>Jugar otra partida</a>
