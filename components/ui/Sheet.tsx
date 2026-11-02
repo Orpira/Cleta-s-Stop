@@ -10,7 +10,9 @@ export function Sheet({ brand, maxWidth, children }: SheetProps) {
   return (
     <div className="page">
       <div className="sheet" style={maxWidth ? { maxWidth } : undefined}>
-        <div className="brand">{brand}</div>
+        <a href="/juegos" className="brand" title="Volver a todos los juegos">
+          {brand}
+        </a>
         {children}
       </div>
     </div>

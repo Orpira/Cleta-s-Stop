@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createRoom, joinRoom } from '@/lib/core/roomActions';
 import { DEFAULT_PUNTOS_CAJAS_SETTINGS } from '@/lib/games/puntos-cajas/gameLogic';
@@ -17,6 +17,15 @@ export default function PuntosCajasHome() {
   const [mode, setMode] = useState<'create' | 'join'>('create');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // "Unirme con un código" de la portada llega con ?codigo=XXXXX
+  useEffect(() => {
+    const codigo = new URLSearchParams(window.location.search).get('codigo');
+    if (codigo) {
+      setMode('join');
+      setJoinCode(codigo.toUpperCase().slice(0, 8));
+    }
+  }, []);
 
   const [maxPlayers, setMaxPlayers] = useState(2);
   const [gridDots, setGridDots] = useState(5);
