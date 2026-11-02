@@ -475,6 +475,8 @@ table.scores td {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
 .notice {
   font-size: 13px;
   background: rgba(232, 185, 59, 0.18);
