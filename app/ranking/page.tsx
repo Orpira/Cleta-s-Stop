@@ -7,9 +7,17 @@ import { LeaderboardRow } from '../../lib/core/supabaseClient';
 import { Sheet } from '../../components/ui/Sheet';
 import { ScoreTable } from '../../components/ui/ScoreTable';
 
+const GAME_NAMES: Record<string, string> = {
+  stop: '¡Stop!',
+  'categorias-rapidas': 'Categorías rápidas',
+  triki: 'Triki',
+  'puntos-cajas': 'Puntos y Cajas',
+};
+
 function RankingContent() {
   const searchParams = useSearchParams();
-  const gameType = searchParams.get('game') || 'stop';
+  const requested = searchParams.get('game') || 'stop';
+  const gameType = requested in GAME_NAMES ? requested : 'stop';
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
 
   useEffect(() => {
@@ -22,7 +30,7 @@ function RankingContent() {
   return (
     <Sheet brand="orpira.es">
       <h1 className="title" style={{ fontSize: 36 }}>Top 5</h1>
-      <p className="subtitle">Las mejores puntuaciones históricas de ¡Stop!</p>
+      <p className="subtitle">Las mejores puntuaciones históricas de {GAME_NAMES[gameType]}</p>
 
       <ScoreTable
         headers={['#', 'Jugador', 'Mejor puntuación', 'Partidas']}
@@ -34,7 +42,7 @@ function RankingContent() {
       />
 
       <p style={{ marginTop: 20 }}>
-        <a href="/juegos/stop" style={{ color: 'var(--ink-blue)' }}>← Volver a jugar</a>
+        <a href={`/juegos/${gameType}`} style={{ color: 'var(--ink-blue)' }}>← Volver a jugar</a>
       </p>
     </Sheet>
   );

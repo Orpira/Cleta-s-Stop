@@ -56,6 +56,50 @@ cambiar debajo.
       tras la revancha el subtítulo muestra "tu turno" para O y "turno de la
       otra persona" para X, y O pudo mover primero sin error.*
 
+## ¡Stop! (rama `fix/stop-mejoras`)
+
+- [ ] Guardado: escribir en una categoría y, sin salir del campo, que el
+      otro jugador pulse "¡Stop!" — la palabra aparece en la revisión.
+- [ ] Recargar la página en mitad de una ronda: se recuperan las palabras
+      escritas y el temporizador sigue donde iba (no vuelve al máximo).
+- [ ] Recargar la página en la revisión: se ven todas las respuestas y votos,
+      y el anfitrión puede validar.
+- [ ] Abrir el enlace de la sala en otra sesión sin haber entrado antes:
+      aparece "Entrar a la sala", se entra con un nombre y se juega.
+      Un nombre repetido en la sala se rechaza.
+- [ ] "Invitar con un enlace": en móvil abre compartir; en escritorio copia.
+- [ ] Ajustes: vaciar "Máx. de jugadores" y salir del campo deja el valor
+      anterior; 500 segundos se corrige a 180; nunca queda por debajo de los
+      jugadores ya conectados.
+- [ ] Modo votación con 1 jugador: "Empezar partida" desactivado con aviso.
+- [ ] Cerrar la pestaña del anfitrión: los demás ven el aviso y, a los ~45 s,
+      el jugador conectado más antiguo pasa a ser anfitrión. La ronda en
+      curso termina igual al acabar el tiempo.
+- [ ] "Cerrar la votación ya" con votos pendientes: decide por los votos
+      emitidos; palabras sin votos cuentan como válidas.
+- [ ] Tildes: "Águila" y "aguila" en la misma categoría puntúan 50 cada una;
+      en modo automático "Ángel" vale para la A y "Ñu" no vale para la N.
+- [ ] Selfie con una foto del móvil: se guarda y aparece en el podio.
+- [ ] `/ranking?game=stop` y "Volver a jugar" llevan a ¡Stop!.
+
+## ¡Stop! — experiencia (rama `feat/stop-experiencia`)
+
+- [ ] Al empezar ronda, la letra gira y cae con sonido en todos los móviles
+      (con "Sonidos" activado y tras haber tocado la página). Al recargar en
+      mitad de la ronda no vuelve a girar.
+- [ ] Últimos 10 s: reloj y barra en rojo; últimos 5 s: pitidos, y en
+      Android vibración en 3, 2, 1.
+- [ ] Al pulsar ¡Stop!: sello grande en pantalla, zumbido y vibración en
+      todos; la revisión dice quién lo cantó, o "¡TIEMPO!" si se acabó.
+- [ ] Durante la ronda se ve cuántas categorías lleva cada jugador y se
+      actualiza al escribir los demás. "✓ Respuestas guardadas" al guardar.
+- [ ] Al calcular puntos: sonido y "Tu ronda: +N pts".
+- [ ] Marcador entre rondas: puntos de la ronda, flechas al cambiar de
+      puesto, quién va en cabeza y "Última ronda" antes de la última.
+- [ ] Final: confeti, fanfarria y "Has ganado" / puesto.
+- [ ] "Sonidos" desactivado se recuerda al volver a entrar y silencia todo.
+- [ ] Con "reducir movimiento" del sistema activado no hay animaciones.
+
 ## Cómo se corrió la última vez
 
 Verificado con scripts de Playwright ad-hoc (headless, usando el Chrome ya

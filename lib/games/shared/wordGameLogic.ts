@@ -43,6 +43,17 @@ export function tallyVotes(votes: { valid: boolean }[], eligibleVoters: number):
   return validCount * 2 > eligibleVoters;
 }
 
+/**
+ * Cierre forzado de una votación (p. ej. alguien se fue de la sala y su voto
+ * no va a llegar): decide sólo con los votos emitidos. Mismo criterio que
+ * tallyVotes —hace falta mayoría estricta de "válida"— salvo que si nadie
+ * votó la palabra, se da por válida (nadie la objetó).
+ */
+export function tallyCastVotes(votes: { valid: boolean }[]): boolean {
+  if (votes.length === 0) return true;
+  return tallyVotes(votes, votes.length);
+}
+
 export interface Vote {
   answer_id: string;
   voter_id: string;
@@ -141,10 +152,27 @@ export function scoreRound(
   return scored;
 }
 
+/**
+ * Normaliza para comparar palabras: minúsculas, sin espacios extremos y sin
+ * tildes ni diéresis ("Águila" = "aguila", "pingüino" = "pinguino"). La ñ se
+ * conserva porque en español es una letra distinta de la n.
+ */
+export function normalizeWord(word: string): string {
+  return word
+    .trim()
+    .toLowerCase()
+    .replace(/ñ/g, '\u0001')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0001/g, 'ñ')
+    .replace(/\s+/g, ' ');
+}
+
 function normalize(word: string): string {
-  return word.trim().toLowerCase();
+  return normalizeWord(word);
 }
 
 function startsWithLetter(word: string, letter: string): boolean {
-  return word.trim().toUpperCase().startsWith(letter.toUpperCase()) && word.trim().length > 0;
+  const w = normalizeWord(word);
+  return w.length > 0 && w.startsWith(normalizeWord(letter));
 }
