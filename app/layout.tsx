@@ -2,8 +2,9 @@ import './globals.css';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: '¡Stop! — orpira.es',
-  description: 'El clásico juego de Stop / Basta, en línea y multijugador.',
+  title: 'Juegos — orpira.es',
+  description:
+    'Suite de juegos multijugador en línea: Dominó 3D, ¡Stop!/Basta, Categorías rápidas, Triki y Puntos y Cajas.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
