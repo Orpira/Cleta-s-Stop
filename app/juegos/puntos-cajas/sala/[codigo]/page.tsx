@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase, Player, Room } from '@/lib/core/supabaseClient';
 import { getStoredPlayerId } from '@/lib/core/roomActions';
+import { upsertLeaderboardResult } from '@/lib/core/scoring';
 import {
   drawLine,
   passTurn,
@@ -209,15 +210,10 @@ export default function PuntosCajasRoomPage() {
     if (!room) return;
     await supabase.from('rooms').update({ status: 'finished' }).eq('id', room.id);
 
-    // Actualizar leaderboard para cada jugador
+    // Actualizar leaderboard para cada jugador (mejor resultado, partidas
+    // jugadas y fecha de la última partida, como en el resto de juegos)
     for (const p of players) {
-      const score = scores[p.id] || 0;
-      await supabase.from('leaderboard').upsert({
-        nickname: p.nickname,
-        game_type: GAME_TYPE,
-        best_score: score,
-        games_played: 1,
-      });
+      await upsertLeaderboardResult(GAME_TYPE, p.nickname, scores[p.id] || 0);
     }
   }
 
@@ -256,7 +252,7 @@ export default function PuntosCajasRoomPage() {
   };
 
   return (
-    <Sheet brand="orpira.es · sala" maxWidth={640}>
+    <Sheet brand="orpira.es · sala" maxWidth={640} leaveWarning={room.status === 'playing' || room.status === 'round_review'}>
       <div className="row" style={{ alignItems: 'baseline', marginBottom: 8 }}>
         <h1 className="title" style={{ fontSize: 34 }}>Puntos y Cajas</h1>
         <span className="code-display">{room.code}</span>
@@ -530,7 +526,7 @@ function FinalResults({ players, winner, scores, code }: { players: Player[]; wi
       />
 
       <p style={{ marginTop: 16 }}>
-        <a href="/ranking?game=puntos-cajas" style={{ color: 'var(--ink-blue)' }}>Ver ranking global →</a>
+        <a href="/ranking?game=puntos-cajas" style={{ color: 'var(--ink-blue)' }}>Ver el ranking de Puntos y Cajas →</a>
         <a href="/juegos/puntos-cajas" style={{ color: 'var(--ink-blue)' }}>Jugar otra partida</a>
       </p>
     </Sheet>

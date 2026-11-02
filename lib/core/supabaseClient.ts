@@ -34,4 +34,6 @@ export interface LeaderboardRow {
   game_type: string;
   best_score: number;
   games_played: number;
+  /** Fecha de la última partida registrada (se actualiza en cada partida). */
+  updated_at: string;
 }

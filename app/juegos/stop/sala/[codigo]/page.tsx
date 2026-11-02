@@ -688,7 +688,7 @@ export default function StopRoomPage() {
   const hostAbsent = !!presentIds && !hostPresent && room.status !== 'finished';
 
   return (
-    <Sheet brand="orpira.es · sala" maxWidth={640}>
+    <Sheet brand="orpira.es · sala" maxWidth={640} leaveWarning={room.status === 'playing' || room.status === 'round_review'}>
       {header}
 
       {hostAbsent && (
@@ -1644,7 +1644,7 @@ function FinalResults({ players, me, code }: { players: Player[]; me: Player | n
       )}
 
       <p style={{ marginTop: 16 }}>
-        <a href="/ranking?game=stop" style={{ color: 'var(--ink-blue)' }}>Ver ranking global (top 5) →</a>
+        <a href="/ranking?game=stop" style={{ color: 'var(--ink-blue)' }}>Ver el ranking de ¡Stop! →</a>
       </p>
       <p style={{ marginTop: 8 }}>
         <a href="/juegos/stop" style={{ color: 'var(--ink-blue)' }}>Jugar otra partida</a>

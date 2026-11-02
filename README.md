@@ -80,6 +80,15 @@ Recomendado: usar un subdominio, por ejemplo `stop.orpira.es`.
 8. Se repite por el número de rondas configurado → marcador final →
    se actualiza el **ranking global top 5** (`/ranking`)
 
+## Ranking semanal
+
+El ranking (`/ranking`) va por juego y se reinicia cada lunes de madrugada
+(hora de España). Para activarlo, ejecuta una vez
+`supabase/migrations/0005_ranking_semanal.sql` en el SQL Editor de Supabase:
+activa `pg_cron`, crea el histórico `leaderboard_weekly_archive` y programa la
+tarea `reset-ranking-semanal`. Para limpiar el ranking a mano en cualquier
+momento: `select public.reset_weekly_leaderboard();` en el SQL Editor.
+
 ## Próximos pasos sugeridos
 
 - Insignias / rachas (gamificación adicional)

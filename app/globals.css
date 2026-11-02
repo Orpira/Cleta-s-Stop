@@ -82,10 +82,37 @@ body {
   text-decoration: none;
 }
 
-a.brand:hover,
-a.brand:focus-visible {
-  opacity: 1;
-  text-decoration: underline;
+.sheet-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sheet-top .brand {
+  margin-bottom: 0;
+}
+
+.back-to-games {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-blue);
+  text-decoration: none;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(43, 76, 126, 0.25);
+  background: rgba(43, 76, 126, 0.06);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.back-to-games:hover,
+.back-to-games:focus-visible {
+  background: rgba(43, 76, 126, 0.14);
+  border-color: rgba(43, 76, 126, 0.45);
 }
 
 h1.title {
@@ -1415,5 +1442,203 @@ table.scores td {
   }
   .hub-marquee {
     overflow-x: auto;
+  }
+}
+
+/* =====================================================================
+   Ranking por juego
+   ===================================================================== */
+
+.ranking-tabs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 2px 12px;
+  margin-bottom: 8px;
+  scrollbar-width: thin;
+}
+
+.ranking-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 8px 8px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 700;
+  color: #eef1f8;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.ranking-tab:hover,
+.ranking-tab:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ranking-tab.is-active {
+  background: #fffdf8;
+  color: var(--ink);
+  border-color: #fffdf8;
+}
+
+.ranking-tab-emblem {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Kalam', cursive;
+  font-size: 13px;
+}
+
+.ranking-card {
+  border-radius: 22px;
+  padding: 24px 26px 18px;
+  background: linear-gradient(180deg, #fffdf8, #f3efe5);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgba(3, 7, 20, 0.45);
+  position: relative;
+  overflow: hidden;
+}
+
+.ranking-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 6px;
+  background: linear-gradient(90deg, var(--stamp-red), var(--highlight) 50%, var(--ink-blue));
+}
+
+.ranking-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ranking-card-head h2 {
+  font-family: 'Kalam', cursive;
+  font-weight: 700;
+  font-size: 28px;
+  margin: 0;
+}
+
+.ranking-card-head .hub-card-cta {
+  text-decoration: none;
+}
+
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.ranking-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7590;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-bottom: 2px solid rgba(43, 76, 126, 0.15);
+}
+
+.ranking-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(43, 76, 126, 0.1);
+}
+
+.ranking-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ranking-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-table .pos {
+  width: 44px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #6b7590;
+}
+
+.ranking-table .name {
+  font-weight: 700;
+}
+
+.ranking-table .score {
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--ink-blue);
+}
+
+.ranking-table .date {
+  color: #4b5a76;
+  white-space: nowrap;
+}
+
+.ranking-table tr.podium-1 td {
+  background: rgba(232, 185, 59, 0.14);
+}
+
+.ranking-empty {
+  margin: 8px 0 14px;
+  color: #4b5a76;
+}
+
+.ranking-reset {
+  color: var(--highlight);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ranking-note {
+  margin-top: 18px;
+  font-size: 14px;
+  color: rgba(238, 241, 248, 0.7);
+}
+
+.ranking-note a {
+  color: #fff;
+}
+
+@media (max-width: 560px) {
+  .ranking-card {
+    padding: 20px 14px 10px;
+  }
+
+  .ranking-card-head h2 {
+    font-size: 22px;
+  }
+
+  .ranking-table {
+    font-size: 14px;
+  }
+
+  .ranking-table th,
+  .ranking-table td {
+    padding: 10px 6px;
+  }
+
+  .ranking-table .pos {
+    width: 32px;
+    font-size: 16px;
+  }
+
+  .ranking-table th:nth-child(4),
+  .ranking-table td:nth-child(4) {
+    /* "Partidas" se oculta en pantallas estrechas para que quepa la fecha */
+    display: none;
   }
 }
