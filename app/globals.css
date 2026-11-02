@@ -1642,3 +1642,28 @@ table.scores td {
     display: none;
   }
 }
+
+/* ---------- Modo app (añadida a la pantalla de inicio) ----------
+   Con viewport-fit=cover y la barra de estado translúcida de iOS, el
+   contenido no debe quedar bajo la muesca ni la barra de estado. */
+.page {
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
+}
+
+.hub {
+  padding-top: max(20px, env(safe-area-inset-top));
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .hub {
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+}

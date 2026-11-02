@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#26365f"/><stop offset="1" stop-color="#0f172c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.55">
+      <stop offset="0" stop-color="#7d8fd6" stop-opacity="0.45"/><stop offset="1" stop-color="#7d8fd6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.32"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="sh" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#02050d" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="116" fill="url(#glow)"/>
+  <g transform="translate(256 256) scale(1.16) rotate(-8)">
+    <g transform="translate(-89.0 -89.0) rotate(-6)">
+      <rect x="-78.0" y="-78.0" width="156" height="156" rx="34" fill="#e0464a" filter="url(#sh)"/>
+      <rect x="-78.0" y="-78.0" width="156" height="156" rx="34" fill="url(#shine)"/>
+      
+    </g>
+    <g transform="translate(89.0 -89.0) rotate(5)">
+      <rect x="-78.0" y="-78.0" width="156" height="156" rx="34" fill="#f2c443" filter="url(#sh)"/>
+      <rect x="-78.0" y="-78.0" width="156" height="156" rx="34" fill="url(#shine)"/>
+      
+    </g>
+    <g transform="translate(-89.0 89.0) rotate(4)">
+      <rect x="-78.0" y="-78.0" width="156" height="156" rx="34" fill="#3567c4" filter="url(#sh)"/>
+      <rect x="-78.0" y="-78.0" width="156" height="156" rx="34" fill="url(#shine)"/>
+      
+    </g>
+    <g transform="translate(89.0 89.0) rotate(-5)">
+      <rect x="-78.0" y="-78.0" width="156" height="156" rx="34" fill="#3fae70" filter="url(#sh)"/>
+      <rect x="-78.0" y="-78.0" width="156" height="156" rx="34" fill="url(#shine)"/>
+      
+    </g>
+  </g>
+</svg>
